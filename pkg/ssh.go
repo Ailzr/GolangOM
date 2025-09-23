@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/crypto/ssh"
 	"os"
+	"os/exec"
 	"sync"
 	"time"
 )
@@ -19,6 +20,24 @@ const (
 	AuthMethodPassword AuthMethod = "password" // 密码验证
 	AuthMethodKey      AuthMethod = "key"      // 密钥验证
 )
+
+type ConnectStatus string
+
+const (
+	Connected    ConnectStatus = "connected"
+	Disconnected ConnectStatus = "disconnected"
+	Connecting   ConnectStatus = "connecting"
+)
+
+// 本地服务器ID
+const LocalServerID = "LocalHostServer"
+
+var LocalServer = &Server{
+	ID:        LocalServerID,
+	IP:        "127.0.0.1",
+	Status:    Connected,
+	SSHClient: nil,
+}
 
 // 对外暴露的用于创建链接的结构体
 type ServerConfig struct {
@@ -36,10 +55,10 @@ type Server struct {
 	IP            string
 	Port          int
 	User          string
-	AuthMethod    AuthMethod // password 或 key
-	Credential    string     // 密钥路径
-	Password      string     // 密码 或 密钥的密码
-	Status        string     // connected, disconnected, connecting
+	AuthMethod    AuthMethod    // password 或 key
+	Credential    string        // 密钥路径
+	Password      string        // 密码 或 密钥的密码
+	Status        ConnectStatus // connected, disconnected, connecting
 	LastCheckTime time.Time
 	SSHClient     *ssh.Client
 }
@@ -59,6 +78,10 @@ var connectionPool = ConnectionPool{
 	mutex:               sync.RWMutex{},
 }
 
+func init() {
+	go connectionPool.StartSSHConnectionCheckTicker(viper.GetInt("Server.CheckInterval"))
+}
+
 func GetConnectionPool() *ConnectionPool {
 	return &connectionPool
 }
@@ -74,6 +97,12 @@ func (c *ConnectionPool) GetServerIDs() []string {
 }
 
 func (c *ConnectionPool) GetServerByID(serverID string) (*Server, error) {
+	if _, ok := c.servers[serverID]; !ok {
+		return nil, fmt.Errorf("server not exists")
+	}
+	if serverID == LocalServerID {
+		return LocalServer, nil
+	}
 	return c.servers[serverID], nil
 }
 
@@ -110,9 +139,40 @@ func addServerToConnectionPool(server *Server) error {
 func NewConnection(config *ServerConfig) error {
 	logs.Logger.Debug("NewConnection")
 
-	authMethod, err := getAuthMethods(config)
+	client, err := sshConnect(config)
 	if err != nil {
 		return err
+	}
+
+	server := &Server{
+		IP:            config.IP,
+		Port:          config.Port,
+		User:          config.User,
+		AuthMethod:    config.AuthMethod,
+		Credential:    config.Credential,
+		Password:      config.Password,
+		Status:        Connected,
+		LastCheckTime: time.Now(),
+		SSHClient:     client,
+	}
+
+	// 保存连接并生成UUID
+	server.SSHClient = client
+	server.ID = uuid.New().String()
+	err = addServerToConnectionPool(server)
+	if err != nil {
+		return err
+	}
+
+	logs.Logger.Info("SSH connect successfully", zap.String("ip", server.IP), zap.String("id", server.ID))
+
+	return nil
+}
+
+func sshConnect(config *ServerConfig) (*ssh.Client, error) {
+	authMethod, err := getAuthMethods(config)
+	if err != nil {
+		return nil, err
 	}
 
 	clientConfig := &ssh.ClientConfig{
@@ -128,32 +188,9 @@ func NewConnection(config *ServerConfig) error {
 	// 建立SSH连接
 	client, err := ssh.Dial("tcp", addr, clientConfig)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	server := &Server{
-		IP:            config.IP,
-		Port:          config.Port,
-		User:          config.User,
-		AuthMethod:    config.AuthMethod,
-		Credential:    config.Credential,
-		Password:      config.Password,
-		Status:        "connected",
-		LastCheckTime: time.Now(),
-		SSHClient:     client,
-	}
-
-	// 保存连接并生成UUID
-	server.SSHClient = client
-	server.ID = uuid.New().String()
-	err = addServerToConnectionPool(server)
-	if err != nil {
-		return err
-	}
-
-	logs.Logger.Info("SSH connect successfully", zap.String("address", addr), zap.String("id", server.ID))
-
-	return nil
+	return client, nil
 }
 
 // 获取认证方式（密码或密钥）
@@ -192,8 +229,29 @@ func getAuthMethods(config *ServerConfig) ([]ssh.AuthMethod, error) {
 
 // 执行命令
 func (s *Server) ExecuteCommand(cmd string) (string, error) {
+	if s.ID == LocalServerID {
+		// 执行本地命令（捕获 stdout 和 stderr 合并输出）
+		startTime := time.Now()
+		output, err := exec.Command(cmd).CombinedOutput()
+		result := string(output)
+
+		if err != nil {
+			// 本地命令执行失败：返回错误和输出详情
+			errMsg := fmt.Errorf("local command failed: %v, output: %s", err, result)
+			return "", errMsg
+		}
+
+		// 本地命令执行成功
+		logs.Logger.Info("local command execute success",
+			zap.String("server_id", s.ID),
+			zap.String("cmd", cmd),
+			zap.Duration("time used", time.Since(startTime)),
+			zap.Int("out length", len(result)))
+		return result, nil
+	}
+
 	// 检查SSH客户端是否有效
-	if s.SSHClient == nil {
+	if !s.CheckSSHConnection() {
 		return "", fmt.Errorf("SSH not init")
 	}
 
@@ -247,4 +305,94 @@ func (s *Server) ExecuteCommand(cmd string) (string, error) {
 // 上传脚本并执行
 func (s *Server) UploadAndExecuteScript(scriptContent string, scriptName string) (string, error) {
 	return "", nil
+}
+
+// CheckSSHConnection 检测 SSH 连接状态
+// 返回 true 表示连接有效，false 表示连接已断开
+func (s *Server) CheckSSHConnection() bool {
+	// 1. 先快速判断：客户端对象是否为 nil 或状态标记为断开
+	if s.SSHClient == nil || s.Status != Connected {
+		logs.Logger.Debug("SSH connection invalid (client nil or status disconnected)",
+			zap.String("server_id", s.ID))
+		return false
+	}
+
+	// 2. 发送 SSH 心跳请求（keepalive）
+	// 第三个参数为请求数据（nil 即可），true 表示等待服务器响应
+	_, _, err := s.SSHClient.SendRequest("keepalive@openssh.com", true, nil)
+	if err != nil {
+		connectionPool.mutex.Lock()
+		// 心跳失败：更新状态为断开，清理客户端
+		s.Status = Disconnected
+		s.SSHClient.Close()
+		s.SSHClient = nil
+		connectionPool.mutex.Unlock()
+		logs.Logger.Warn("SSH connection keepalive failed",
+			zap.String("server_id", s.ID),
+			zap.Error(err))
+		return false
+	}
+
+	// 3. 心跳成功：更新最后检查时间
+	connectionPool.mutex.Lock()
+	s.LastCheckTime = time.Now()
+	connectionPool.mutex.Unlock()
+
+	logs.Logger.Debug("SSH connection keepalive success",
+		zap.String("server_id", s.ID))
+	return true
+}
+
+// StartSSHConnectionCheckTicker 启动定时批量检测（间隔可配置）
+// interval: 检测间隔，单位秒
+func (c *ConnectionPool) StartSSHConnectionCheckTicker(interval int) {
+	ticker := time.NewTicker(time.Duration(interval) * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		c.mutex.RLock() // 读锁：批量读取服务器，不阻塞其他读操作
+		servers := make(map[string]*Server, len(c.servers))
+		for k, v := range c.servers {
+			// 判断是否已超过检测间隔
+			if v.LastCheckTime.Add(time.Duration(interval) * time.Second).Before(time.Now()) {
+				servers[k] = v
+			}
+		}
+		c.mutex.RUnlock()
+
+		// 批量检测每个服务器的 SSH 连接
+		for _, s := range servers {
+			// 检测失败时尝试重连
+			if !s.CheckSSHConnection() {
+				logs.Logger.Info("try to reconnect SSH server",
+					zap.String("server_id", s.ID))
+
+				client, err := sshConnect(&ServerConfig{
+					AuthMethod: s.AuthMethod,
+					Credential: s.Credential,
+					IP:         s.IP,
+					Password:   s.Password,
+					Port:       s.Port,
+					User:       s.User,
+				})
+				if err != nil {
+					logs.Logger.Error("reconnect SSH server failed",
+						zap.String("server_id", s.ID),
+						zap.String("server_ip", s.IP),
+						zap.Error(err),
+					)
+					continue
+				}
+				// 如果重连成功，更新服务器状态
+				c.mutex.Lock()
+				if existingServer, exists := c.servers[s.ID]; exists {
+					existingServer.SSHClient = client
+					existingServer.LastCheckTime = time.Now()
+					existingServer.Status = Connected
+				}
+				c.mutex.Unlock()
+			}
+		}
+
+	}
 }

@@ -6,6 +6,8 @@ Server:
   Development: true
   # 最大SSH连接数
   MaxConnectionNumber: 50
+  # 服务器链接检测间隔，单位秒
+  CheckInterval: 30
 
 # 数据库配置
 DB:
