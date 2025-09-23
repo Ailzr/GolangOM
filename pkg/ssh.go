@@ -66,10 +66,10 @@ func addServerToConnectionPool(server *Server) error {
 	connectionPool.mutex.Lock()
 	defer connectionPool.mutex.Unlock()
 	if connectionPool.connectionNumber >= connectionPool.maxConnectionNumber {
-		return fmt.Errorf("已超出最大连接数限制")
+		return fmt.Errorf("over max connection number")
 	}
 	if _, ok := connectionPool.servers[server.ID]; ok {
-		return fmt.Errorf("服务器已存在")
+		return fmt.Errorf("server already exists")
 	}
 	connectionPool.servers[server.ID] = server
 	connectionPool.connectionNumber++
@@ -117,7 +117,7 @@ func NewConnection(config *ServerConfig) error {
 	server.SSHClient = client
 	server.ID = uuid.New().String()
 
-	logs.Logger.Info("SSH连接成功", zap.String("address", addr), zap.String("id", server.ID))
+	logs.Logger.Info("SSH connect successfully", zap.String("address", addr), zap.String("id", server.ID))
 
 	return nil
 }
@@ -134,7 +134,7 @@ func getAuthMethods(config *ServerConfig) ([]ssh.AuthMethod, error) {
 		// 密钥认证
 		key, err := os.ReadFile(config.Credential)
 		if err != nil {
-			return nil, fmt.Errorf("读取密钥文件失败: %v", err)
+			return nil, fmt.Errorf("load key file failed: %v", err)
 		}
 
 		signer, err := ssh.ParsePrivateKey(key)
@@ -144,7 +144,7 @@ func getAuthMethods(config *ServerConfig) ([]ssh.AuthMethod, error) {
 				signer, err = ssh.ParsePrivateKeyWithPassphrase(key, []byte(config.Password))
 			}
 			if err != nil {
-				return nil, fmt.Errorf("解析密钥失败: %v", err)
+				return nil, fmt.Errorf("parse key failed: %v", err)
 			}
 		}
 
@@ -153,7 +153,7 @@ func getAuthMethods(config *ServerConfig) ([]ssh.AuthMethod, error) {
 
 	}
 
-	return nil, fmt.Errorf("未提供有效的认证方式（密码或密钥）")
+	return nil, fmt.Errorf("not exists auth method")
 }
 
 // 执行命令
