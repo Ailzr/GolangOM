@@ -1,0 +1,37 @@
+# 服务器配置
+Server:
+  # 程序UI界面端口
+  WebUIPort: 25888
+  # 是否为开发模式
+  Development: true
+  # 最大SSH连接数
+  MaxConnectionNumber: 50
+
+# 数据库配置
+DB:
+  # MySQL数据库配置
+  MySQL:
+    Host: localhost
+    Port: 3306
+    User: root
+    Password: <PASSWORD>
+    Database: test
+    Charset: utf8mb4
+    TimeZone: Local
+  # Redis数据库配置
+  Redis:
+    Host: localhost
+    Port: 6379
+    Password:
+    DB: 0
+
+# 日志轮转配置，仅生产环境生效，开发环境不输出日志到文件，只输出到控制台
+Log:
+  # 单个日志文件最大大小，单位MB
+  MaxSize: 100
+  # 日志文件备份数量
+  MaxBackup: 20
+  # 日志文件保留天数
+  MaxAge: 365
+  # 是否压缩日志文件
+  Compress: true
