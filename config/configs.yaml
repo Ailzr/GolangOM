@@ -14,7 +14,7 @@ DB:
     Host: localhost
     Port: 3306
     User: root
-    Password: <PASSWORD>
+    Password: 123456
     Database: test
     Charset: utf8mb4
     TimeZone: Local

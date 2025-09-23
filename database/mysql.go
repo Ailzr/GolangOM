@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"time"
 )
 
 var DB *gorm.DB
@@ -30,9 +31,20 @@ func init() {
 		charset,
 		timezone,
 	)
-	DB, err = gorm.Open(mysql.Open(viper.GetString(arg)), &gorm.Config{})
-	if err != nil {
-		logs.Logger.Fatal("MySQL connect failed", zap.Error(err))
+	connectFailed := true
+	// 尝试链接数据库3次
+	for times := 0; times < 3; times++ {
+		DB, err = gorm.Open(mysql.Open(viper.GetString(arg)), &gorm.Config{})
+		if err != nil {
+			logs.Logger.Error(fmt.Sprintf("MySQL connect failed, times: %d", times+1), zap.Error(err))
+			// 链接失败后等待1秒再重试链接
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		connectFailed = false
+	}
+	if connectFailed {
+		logs.Logger.Error("MySQL connect failed", zap.Error(err))
 	}
 	logs.Logger.Info("MySQL connect successfully")
 }
