@@ -4,6 +4,7 @@ import (
 	_ "GolangOM/config"
 	"GolangOM/logs"
 	"GolangOM/pkg"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"time"
 )
@@ -25,26 +26,32 @@ func main() {
 		logs.Logger.Error("NewConnection error", zap.Error(err))
 	}
 
+	ids := pkg.GetConnectionPool().GetServerIDs()
+
+	appConfig := pkg.AppCheckConfig{
+		ID:            uuid.New().String(),
+		Name:          "test",
+		ServerID:      ids[0],
+		CheckTarget:   "server-linux",
+		StartScript:   "/home/ailzr/test.sh",
+		CheckInterval: 5,
+		AutoRestart:   true,
+	}
+
+	err = appConfig.StartApp()
+	if err != nil {
+		logs.Logger.Error("StartApp error", zap.Error(err))
+		return
+	}
+
 	for times := 0; times < 3; times++ {
-		test()
-		time.Sleep(5 * time.Second)
+		if appConfig.CheckAppStatus() {
+			logs.Logger.Debug("App is running")
+		} else {
+			logs.Logger.Debug("App is not running")
+		}
+		time.Sleep(3 * time.Second)
 	}
 
 	logs.Logger.Info("Exit Successfully")
-}
-
-func test() {
-	ids := pkg.GetConnectionPool().GetServerIDs()
-	for _, id := range ids {
-		server, err := pkg.GetConnectionPool().GetServerByID(id)
-		if err != nil {
-			logs.Logger.Error("GetServerByID error", zap.Error(err))
-			continue
-		}
-		stdout, err := server.ExecuteCommand("echo 'hello world'")
-		if err != nil {
-			return
-		}
-		logs.Logger.Info("ExecuteCommand", zap.String("stdout", stdout))
-	}
 }
