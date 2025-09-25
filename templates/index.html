@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>首页</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: #f5f7fa; }
+        .header { background-color: #333; color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .logo { font-size: 1.5rem; font-weight: bold; }
+        .user-area { display: flex; align-items: center; gap: 1rem; }
+        .user-info { color: #eee; }
+        #logout-btn { background-color: #f44336; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; transition: background 0.3s; }
+        #logout-btn:hover { background-color: #d32f2f; }
+        #logout-btn:disabled { background-color: #f8a49e; cursor: not-allowed; }
+        .container { max-width: 800px; margin: 2rem auto; background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 15px rgba(0,0,0,0.05); }
+        .welcome-card { text-align: center; padding: 2rem 0; border-bottom: 1px solid #eee; margin-bottom: 2rem; }
+        .welcome-card h1 { color: #333; margin-bottom: 0.5rem; }
+        .welcome-card p { color: #666; font-size: 1.1rem; }
+        .user-detail { padding: 1rem; background-color: #f9fafc; border-radius: 4px; }
+        .user-detail h3 { color: #409eff; margin-bottom: 1rem; }
+        .detail-item { margin-bottom: 0.8rem; color: #666; }
+        .detail-item span { font-weight: bold; color: #333; }
+        .msg { margin-top: 1rem; text-align: center; font-size: 0.9rem; color: #f56c6c; }
+    </style>
+</head>
+<body>
+<div class="header">
+    <div class="logo">我的应用</div>
+    <div class="user-area">
+        <div class="user-info" id="user-info">加载中...</div>
+        <button id="logout-btn">退出登录</button>
+    </div>
+</div>
+
+<div class="container">
+    <div class="welcome-card">
+        <h1>欢迎回来，<span id="welcome-name">用户</span>！</h1>
+        <p>上次登录时间：<span id="last-login">--</span></p>
+    </div>
+    <div class="user-detail">
+        <h3>账户信息</h3>
+        <div class="detail-item">用户名：<span id="detail-username">--</span></div>
+        <div class="detail-item">角色：<span id="detail-role">--</span></div>
+        <div class="detail-item">登录状态：<span id="login-status" style="color: #67c23a;">已登录</span></div>
+    </div>
+    <div id="msg" class="msg"></div>
+</div>
+
+<script>
+    const userInfoDiv = document.getElementById('user-info');
+    const welcomeNameSpan = document.getElementById('welcome-name');
+    const lastLoginSpan = document.getElementById('last-login');
+    const detailUsernameSpan = document.getElementById('detail-username');
+    const detailRoleSpan = document.getElementById('detail-role');
+    const logoutBtn = document.getElementById('logout-btn');
+    const msgDiv = document.getElementById('msg');
+
+    // 页面加载时检测登录状态（核心：未登录则跳转登录页）
+    window.addEventListener('load', async () => {
+        try {
+            // 调用用户信息 API 校验登录状态
+            const response = await fetch('/api/user/info', {
+                credentials: 'include' // 关键：携带 Cookie（传递 Session ID）
+            });
+
+            if (!response.ok) {
+                // 未登录：跳转登录页
+                // window.location.href = '/login';
+                return;
+            }
+
+            // 已登录：解析用户信息并渲染页面
+            const result = await response.json();
+            if (result.code === 200) {
+                const userData = result.data;
+                userInfoDiv.textContent = `当前用户：${userData.username}`;
+                welcomeNameSpan.textContent = userData.username;
+                lastLoginSpan.textContent = userData.loginTime;
+                detailUsernameSpan.textContent = userData.username;
+                detailRoleSpan.textContent = userData.role;
+            } else {
+                window.location.href = '/login';
+            }
+        } catch (err) {
+            showMsg('网络错误，即将跳转登录页...');
+            setTimeout(() => {
+                // window.location.href = '/login';
+            }, 1500);
+            console.error('检测登录状态异常：', err);
+        }
+    });
+
+    // 退出登录按钮点击事件
+    logoutBtn.addEventListener('click', async () => {
+        if (!confirm('确定要退出登录吗？退出后需重新登录')) {
+            return;
+        }
+
+        // 禁用按钮防止重复提交
+        logoutBtn.disabled = true;
+        logoutBtn.textContent = '退出中...';
+        showMsg('');
+
+        try {
+            // 调用退出 API
+            const response = await fetch('/api/logout', {
+                method: 'POST',
+                credentials: 'include' // 关键：携带 Cookie（销毁 Session 需验证）
+            });
+
+            const result = await response.json();
+            if (result.code === 200) {
+                // 退出成功：跳转登录页
+                showMsg('退出成功，即将跳转登录页...');
+                setTimeout(() => {
+                    window.location.href = result.data.redirect;
+                }, 1000);
+            } else {
+                showMsg(result.msg);
+            }
+        } catch (err) {
+            showMsg('网络错误，退出失败');
+            console.error('退出登录异常：', err);
+        } finally {
+            // 恢复按钮状态
+            logoutBtn.disabled = false;
+            logoutBtn.textContent = '退出登录';
+        }
+    });
+
+    // 显示提示消息
+    function showMsg(text) {
+        msgDiv.textContent = text;
+    }
+</script>
+</body>
+</html>

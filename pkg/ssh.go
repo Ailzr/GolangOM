@@ -1,10 +1,10 @@
 package pkg
 
 import (
+	"GolangOM/constant"
 	"GolangOM/logs"
 	"bytes"
 	"fmt"
-	"github.com/google/uuid"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/ssh"
@@ -14,39 +14,22 @@ import (
 	"time"
 )
 
-type AuthMethod string
-
-const (
-	AuthMethodPassword AuthMethod = "password" // 密码验证
-	AuthMethodKey      AuthMethod = "key"      // 密钥验证
-)
-
-type ConnectStatus string
-
-const (
-	Connected    ConnectStatus = "connected"
-	Disconnected ConnectStatus = "disconnected"
-	Connecting   ConnectStatus = "connecting"
-)
-
-// 本地服务器ID
-const LocalServerID = "LocalHostServer"
-
 var LocalServer = &Server{
-	ID:        LocalServerID,
+	ID:        constant.LocalServerID,
 	IP:        "127.0.0.1",
-	Status:    Connected,
+	Status:    constant.Connected,
 	SSHClient: nil,
 }
 
 // 对外暴露的用于创建链接的结构体
 type ServerConfig struct {
+	ID         string
 	IP         string
 	Port       int
 	User       string
-	AuthMethod AuthMethod // password 或 key
-	Credential string     // 密钥路径
-	Password   string     // 密码 或 密钥的密码
+	AuthMethod constant.AuthMethod // password 或 key
+	Credential string              // 密钥路径
+	Password   string              // 密码 或 密钥的密码
 }
 
 // 服务器结构体
@@ -55,10 +38,10 @@ type Server struct {
 	IP            string
 	Port          int
 	User          string
-	AuthMethod    AuthMethod    // password 或 key
-	Credential    string        // 密钥路径
-	Password      string        // 密码 或 密钥的密码
-	Status        ConnectStatus // connected, disconnected, connecting
+	AuthMethod    constant.AuthMethod    // password 或 key
+	Credential    string                 // 密钥路径
+	Password      string                 // 密码 或 密钥的密码
+	Status        constant.ConnectStatus // connected, disconnected, connecting
 	LastCheckTime time.Time
 	SSHClient     *ssh.Client
 }
@@ -96,14 +79,14 @@ func (c *ConnectionPool) GetServerIDs() []string {
 	return ids
 }
 
-func (c *ConnectionPool) GetServerByID(serverID string) (*Server, error) {
+func (c *ConnectionPool) GetServerByID(serverID string) *Server {
 	if _, ok := c.servers[serverID]; !ok {
-		return nil, fmt.Errorf("server not exists")
+		return nil
 	}
-	if serverID == LocalServerID {
-		return LocalServer, nil
+	if serverID == constant.LocalServerID {
+		return LocalServer
 	}
-	return c.servers[serverID], nil
+	return c.servers[serverID]
 }
 
 func addServerToConnectionPool(server *Server) error {
@@ -145,20 +128,20 @@ func NewConnection(config *ServerConfig) error {
 	}
 
 	server := &Server{
+		ID:            config.ID,
 		IP:            config.IP,
 		Port:          config.Port,
 		User:          config.User,
 		AuthMethod:    config.AuthMethod,
 		Credential:    config.Credential,
 		Password:      config.Password,
-		Status:        Connected,
+		Status:        constant.Connected,
 		LastCheckTime: time.Now(),
 		SSHClient:     client,
 	}
 
 	// 保存连接并生成UUID
 	server.SSHClient = client
-	server.ID = uuid.New().String()
 	err = addServerToConnectionPool(server)
 	if err != nil {
 		return err
@@ -197,11 +180,11 @@ func sshConnect(config *ServerConfig) (*ssh.Client, error) {
 func getAuthMethods(config *ServerConfig) ([]ssh.AuthMethod, error) {
 	var authMethods []ssh.AuthMethod
 
-	if config.AuthMethod == AuthMethodPassword {
+	if config.AuthMethod == constant.AuthMethodPassword {
 		// 密码认证
 		authMethods = append(authMethods, ssh.Password(config.Password))
 		return authMethods, nil
-	} else if config.AuthMethod == AuthMethodKey {
+	} else if config.AuthMethod == constant.AuthMethodKey {
 		// 密钥认证
 		key, err := os.ReadFile(config.Credential)
 		if err != nil {
@@ -229,7 +212,7 @@ func getAuthMethods(config *ServerConfig) ([]ssh.AuthMethod, error) {
 
 // 执行命令
 func (s *Server) ExecuteCommand(cmd string) (string, error) {
-	if s.ID == LocalServerID {
+	if s.ID == constant.LocalServerID {
 		// 执行本地命令（捕获 stdout 和 stderr 合并输出）
 		startTime := time.Now()
 		output, err := exec.Command(cmd).CombinedOutput()
@@ -302,16 +285,11 @@ func (s *Server) ExecuteCommand(cmd string) (string, error) {
 	return result, nil
 }
 
-// 上传脚本并执行
-func (s *Server) UploadAndExecuteScript(scriptContent string, scriptName string) (string, error) {
-	return "", nil
-}
-
 // CheckSSHConnection 检测 SSH 连接状态
 // 返回 true 表示连接有效，false 表示连接已断开
 func (s *Server) CheckSSHConnection() bool {
 	// 1. 先快速判断：客户端对象是否为 nil 或状态标记为断开
-	if s.SSHClient == nil || s.Status != Connected {
+	if s.SSHClient == nil || s.Status != constant.Connected {
 		logs.Logger.Debug("SSH connection invalid (client nil or status disconnected)",
 			zap.String("server_id", s.ID))
 		return false
@@ -323,7 +301,7 @@ func (s *Server) CheckSSHConnection() bool {
 	if err != nil {
 		connectionPool.mutex.Lock()
 		// 心跳失败：更新状态为断开，清理客户端
-		s.Status = Disconnected
+		s.Status = constant.Disconnected
 		s.SSHClient.Close()
 		s.SSHClient = nil
 		connectionPool.mutex.Unlock()
@@ -388,7 +366,7 @@ func (c *ConnectionPool) StartSSHConnectionCheckTicker(interval int) {
 				if existingServer, exists := c.servers[s.ID]; exists {
 					existingServer.SSHClient = client
 					existingServer.LastCheckTime = time.Now()
-					existingServer.Status = Connected
+					existingServer.Status = constant.Connected
 				}
 				c.mutex.Unlock()
 			}

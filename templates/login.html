@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: #f5f7fa; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .login-container { background: white; padding: 2.5rem; border-radius: 8px; box-shadow: 0 2px 15px rgba(0,0,0,0.05); width: 350px; }
+        .login-container h2 { text-align: center; color: #333; margin-bottom: 1.5rem; }
+        .form-group { margin-bottom: 1.2rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; color: #666; font-size: 0.95rem; }
+        .form-group input { width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem; transition: border 0.3s; }
+        .form-group input:focus { outline: none; border-color: #409eff; box-shadow: 0 0 0 2px rgba(64,158,255,0.2); }
+        #login-btn { width: 100%; padding: 0.8rem; background-color: #409eff; color: white; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer; transition: background 0.3s; }
+        #login-btn:hover { background-color: #337ab7; }
+        #login-btn:disabled { background-color: #a0cfff; cursor: not-allowed; }
+        .msg { margin-top: 1rem; text-align: center; font-size: 0.9rem; height: 1.2rem; }
+        .msg.error { color: #f56c6c; }
+        .msg.success { color: #67c23a; }
+    </style>
+</head>
+<body>
+<div class="login-container">
+    <h2>GolangOM</h2>
+    <div class="form-group">
+        <label for="username">用户名</label>
+        <input type="text" id="username" placeholder="请输入用户名" value="admin">
+    </div>
+    <div class="form-group">
+        <label for="password">密码</label>
+        <input type="password" id="password" placeholder="请输入密码" value="password">
+    </div>
+    <button id="login-btn">登录</button>
+    <div id="msg" class="msg"></div>
+</div>
+
+<script>
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const loginBtn = document.getElementById('login-btn');
+    const msgDiv = document.getElementById('msg');
+
+    // 登录按钮点击事件
+    loginBtn.addEventListener('click', async () => {
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value.trim();
+
+        // 前端空值校验
+        if (!username || !password) {
+            showMsg('用户名和密码不能为空', 'error');
+            return;
+        }
+
+        // 禁用按钮防止重复提交
+        loginBtn.disabled = true;
+        loginBtn.textContent = '登录中...';
+        showMsg('', '');
+
+        try {
+            // 调用登录 API
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password }),
+                credentials: 'include' // 关键：携带 Cookie（Session ID 后续靠 Cookie 传递）
+            });
+
+            const result = await response.json();
+            if (result.code === 200) {
+                // 登录成功：跳转到首页
+                showMsg('登录成功，即将跳转...', 'success');
+                setTimeout(() => {
+                    window.location.href = result.data.redirect;
+                }, 1000);
+            } else {
+                // 登录失败：显示错误信息
+                showMsg(result.msg, 'error');
+            }
+        } catch (err) {
+            showMsg('网络错误，请稍后再试', 'error');
+            console.error('登录异常：', err);
+        } finally {
+            // 恢复按钮状态
+            loginBtn.disabled = false;
+            loginBtn.textContent = '登录';
+        }
+    });
+
+    // 显示提示消息
+    function showMsg(text, type) {
+        msgDiv.textContent = text;
+        msgDiv.className = 'msg';
+        if (type) msgDiv.classList.add(type);
+    }
+</script>
+</body>
+</html>
