@@ -63,18 +63,21 @@ func Init() {
 		if server.ID == constant.LocalServerID {
 			continue
 		}
-		err := pkg.GetConnectionPool().NewConnection(&pkg.ServerConfig{
-			AuthMethod: server.AuthMethod,
-			Credential: server.Credential,
-			ID:         server.ID,
-			IP:         server.IP,
-			Password:   server.Password,
-			Port:       server.Port,
-			User:       server.User,
-		})
-		if err != nil {
-			logs.Logger.Error("NewConnection failed", zap.String("server_id", strconv.Itoa(int(server.ID))), zap.Error(err))
-		}
+		// 用协程去建立连接，避免阻塞主线程
+		go func() {
+			err := pkg.GetConnectionPool().NewConnection(&pkg.ServerConfig{
+				AuthMethod: server.AuthMethod,
+				Credential: server.Credential,
+				ID:         server.ID,
+				IP:         server.IP,
+				Password:   server.Password,
+				Port:       server.Port,
+				User:       server.User,
+			})
+			if err != nil {
+				logs.Logger.Error("NewConnection failed", zap.String("server_id", strconv.Itoa(int(server.ID))), zap.Error(err))
+			}
+		}()
 	}
 
 	apps, err := model.GetAppList()
@@ -83,19 +86,22 @@ func Init() {
 	}
 
 	for _, app := range apps {
-		err := pkg.GetAppCheckerManager().NewAppChecker(&pkg.AppCheckConfig{
-			AutoRestart:   app.AutoRestart,
-			CheckInterval: app.CheckInterval,
-			CheckTarget:   app.CheckTarget,
-			CheckType:     app.CheckType,
-			ID:            app.ID,
-			Name:          app.Name,
-			ServerID:      app.ServerID,
-			StartScript:   app.StartScript,
-		})
-		if err != nil {
-			logs.Logger.Error("NewAppChecker failed", zap.String("app_id", strconv.Itoa(int(app.ID))), zap.Error(err))
-		}
+		// 用协程去建立连接，避免阻塞主线程
+		go func() {
+			err := pkg.GetAppCheckerManager().NewAppChecker(&pkg.AppCheckConfig{
+				AutoRestart:   app.AutoRestart,
+				CheckInterval: app.CheckInterval,
+				CheckTarget:   app.CheckTarget,
+				CheckType:     app.CheckType,
+				ID:            app.ID,
+				Name:          app.Name,
+				ServerID:      app.ServerID,
+				StartScript:   app.StartScript,
+			})
+			if err != nil {
+				logs.Logger.Error("NewAppChecker failed", zap.String("app_id", strconv.Itoa(int(app.ID))), zap.Error(err))
+			}
+		}()
 	}
 
 }

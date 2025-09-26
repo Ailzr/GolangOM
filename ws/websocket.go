@@ -142,8 +142,8 @@ func StartHeartbeat(ctx context.Context, conn *websocket.Conn) {
 }
 
 func SendMessage(msg Message) {
-	wsPool.mutex.RLock()
-	defer wsPool.mutex.RUnlock()
+	wsPool.mutex.Lock()
+	defer wsPool.mutex.Unlock()
 	for _, conn := range wsPool.Connections {
 		if err := conn.WriteJSON(msg); err != nil {
 			logs.Logger.Error("message send failed", zap.Error(err))

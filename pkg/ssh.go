@@ -135,11 +135,6 @@ func (c *ConnectionPool) RemoveServerFromConnectionPoolByID(serverID uint) {
 func (c *ConnectionPool) NewConnection(config *ServerConfig) error {
 	logs.Logger.Debug("NewConnection")
 
-	client, err := sshConnect(config)
-	if err != nil {
-		return err
-	}
-
 	server := &Server{
 		ID:            config.ID,
 		IP:            config.IP,
@@ -148,17 +143,25 @@ func (c *ConnectionPool) NewConnection(config *ServerConfig) error {
 		AuthMethod:    config.AuthMethod,
 		Credential:    config.Credential,
 		Password:      config.Password,
-		Status:        constant.Connected,
+		Status:        constant.Disconnected,
 		LastCheckTime: time.Now(),
-		SSHClient:     client,
+		SSHClient:     nil,
 	}
 
-	// 保存连接并生成UUID
-	server.SSHClient = client
-	err = c.AddServerToConnectionPool(server)
+	err := c.AddServerToConnectionPool(server)
 	if err != nil {
 		return err
 	}
+
+	client, err := sshConnect(config)
+	if err != nil {
+		return err
+	}
+
+	connectionPool.mutex.Lock()
+	connectionPool.servers[server.ID].Status = constant.Connected
+	connectionPool.servers[server.ID].SSHClient = client
+	connectionPool.mutex.Unlock()
 
 	logs.Logger.Info("SSH connect successfully", zap.String("ip", server.IP), zap.String("id", strconv.Itoa(int(server.ID))))
 

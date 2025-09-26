@@ -20,12 +20,6 @@ DB:
     Database: test
     Charset: utf8mb4
     TimeZone: Local
-  # Redis数据库配置
-  Redis:
-    Host: localhost
-    Port: 6379
-    Password:
-    DB: 0
 
 # 日志轮转配置，仅生产环境生效，开发环境不输出日志到文件，只输出到控制台
 Log:

@@ -106,6 +106,7 @@ func (app *AppCheckConfig) StartAppChecker() {
 					err := app.StartApp()
 					if err != nil {
 						logs.Logger.Error("App start error", zap.Error(err))
+						time.Sleep(time.Duration(app.CheckInterval) * time.Second)
 						continue
 					}
 					app.LastCheckResult = true
