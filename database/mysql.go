@@ -34,7 +34,7 @@ func init() {
 	connectFailed := true
 	// 尝试链接数据库3次
 	for times := 0; times < 3; times++ {
-		DB, err = gorm.Open(mysql.Open(viper.GetString(arg)), &gorm.Config{})
+		DB, err = gorm.Open(mysql.Open(arg), &gorm.Config{})
 		if err != nil {
 			logs.Logger.Error(fmt.Sprintf("MySQL connect failed, times: %d", times+1), zap.Error(err))
 			// 链接失败后等待1秒再重试链接
@@ -42,6 +42,7 @@ func init() {
 			continue
 		}
 		connectFailed = false
+		break
 	}
 	if connectFailed {
 		logs.Logger.Error("MySQL connect failed", zap.Error(err))

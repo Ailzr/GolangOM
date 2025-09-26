@@ -7,13 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"go.uber.org/zap"
+	"strconv"
 	"sync"
 	"time"
 )
 
 type AppCheckConfig struct {
-	ID              string
-	ServerID        string
+	ID              uint
+	ServerID        uint
 	Name            string
 	CheckType       constant.AppCheckType // pid, port, http
 	CheckTarget     string                // 如进程名、端口号、URL
@@ -27,12 +28,12 @@ type AppCheckConfig struct {
 }
 
 type AppCheckerManager struct {
-	AppCheckerMap   map[string]*AppCheckConfig
+	AppCheckerMap   map[uint]*AppCheckConfig
 	AppCheckerMutex sync.RWMutex
 }
 
 var appCheckerManager = AppCheckerManager{
-	AppCheckerMap:   make(map[string]*AppCheckConfig),
+	AppCheckerMap:   make(map[uint]*AppCheckConfig),
 	AppCheckerMutex: sync.RWMutex{},
 }
 
@@ -47,9 +48,10 @@ func (a *AppCheckerManager) NewAppChecker(app *AppCheckConfig) {
 		return
 	}
 	a.AppCheckerMap[app.ID] = app
+	app.StartAppChecker()
 }
 
-func (a *AppCheckerManager) GetAppCheckerByID(appID string) *AppCheckConfig {
+func (a *AppCheckerManager) GetAppCheckerByID(appID uint) *AppCheckConfig {
 	if _, ok := a.AppCheckerMap[appID]; !ok {
 		return nil
 	}
@@ -97,7 +99,7 @@ func (app *AppCheckConfig) StopAppChecker() {
 func (app *AppCheckConfig) CheckAppStatus() bool {
 	server := GetConnectionPool().GetServerByID(app.ServerID)
 	if server == nil {
-		logs.Logger.Error("GetServerByID error", zap.Error(errors.New("server not exists")), zap.String("server_id", app.ServerID))
+		logs.Logger.Error("GetServerByID error", zap.Error(errors.New("server not exists")), zap.String("server_id", strconv.Itoa(int(app.ServerID))))
 		return false
 	}
 	if app.CheckType == constant.AppCheckTypePid {

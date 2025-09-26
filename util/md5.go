@@ -1,7 +1,10 @@
 package util
 
-import "crypto/md5"
+import (
+	"crypto/md5"
+	"fmt"
+)
 
 func GetMd5(str string) string {
-	return string(md5.New().Sum([]byte(str)))
+	return fmt.Sprintf("%x", md5.Sum([]byte(str)))
 }

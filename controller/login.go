@@ -1,7 +1,9 @@
-package webUI
+package controller
 
 import (
+	"GolangOM/model"
 	"GolangOM/response"
+	"GolangOM/util"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"net/http"
@@ -43,8 +45,10 @@ func LoginLogicFunc() gin.HandlerFunc {
 		username := strings.TrimSpace(req.Username)
 		password := strings.TrimSpace(req.Password)
 
+		user := model.User{Username: username}
+
 		// 4. 业务逻辑验证
-		if username == "admin" && password == "password" {
+		if user.IsExists() && util.GetMd5(password) == user.Password {
 			// 登录成功，创建session
 			session := sessions.Default(c)
 			session.Set("username", username)

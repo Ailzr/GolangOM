@@ -10,6 +10,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"os"
 	"os/exec"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -23,7 +24,7 @@ var LocalServer = &Server{
 
 // 对外暴露的用于创建链接的结构体
 type ServerConfig struct {
-	ID         string
+	ID         uint
 	IP         string
 	Port       int
 	User       string
@@ -34,7 +35,7 @@ type ServerConfig struct {
 
 // 服务器结构体
 type Server struct {
-	ID            string
+	ID            uint
 	IP            string
 	Port          int
 	User          string
@@ -48,7 +49,7 @@ type Server struct {
 
 type ConnectionPool struct {
 	maxConnectionNumber int
-	servers             map[string]*Server
+	servers             map[uint]*Server
 	connectionNumber    int
 	mutex               sync.RWMutex
 	// 连接池配置
@@ -56,7 +57,7 @@ type ConnectionPool struct {
 
 var connectionPool = ConnectionPool{
 	maxConnectionNumber: viper.GetInt("Server.MaxConnectionNumber"),
-	servers:             make(map[string]*Server),
+	servers:             make(map[uint]*Server),
 	connectionNumber:    0,
 	mutex:               sync.RWMutex{},
 }
@@ -69,17 +70,18 @@ func GetConnectionPool() *ConnectionPool {
 	return &connectionPool
 }
 
-func (c *ConnectionPool) GetServerIDs() []string {
+func (c *ConnectionPool) GetServerIDs() []uint {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
-	ids := make([]string, 0, len(c.servers))
+	ids := make([]uint, 0, len(c.servers))
+	ids = append(ids, constant.LocalServerID)
 	for id := range c.servers {
 		ids = append(ids, id)
 	}
 	return ids
 }
 
-func (c *ConnectionPool) GetServerByID(serverID string) *Server {
+func (c *ConnectionPool) GetServerByID(serverID uint) *Server {
 	if _, ok := c.servers[serverID]; !ok {
 		return nil
 	}
@@ -119,7 +121,7 @@ func addServerToConnectionPool(server *Server) error {
 //}
 
 // 新建连接
-func NewConnection(config *ServerConfig) error {
+func (c *ConnectionPool) NewConnection(config *ServerConfig) error {
 	logs.Logger.Debug("NewConnection")
 
 	client, err := sshConnect(config)
@@ -147,7 +149,7 @@ func NewConnection(config *ServerConfig) error {
 		return err
 	}
 
-	logs.Logger.Info("SSH connect successfully", zap.String("ip", server.IP), zap.String("id", server.ID))
+	logs.Logger.Info("SSH connect successfully", zap.String("ip", server.IP), zap.String("id", strconv.Itoa(int(server.ID))))
 
 	return nil
 }
@@ -226,7 +228,7 @@ func (s *Server) ExecuteCommand(cmd string) (string, error) {
 
 		// 本地命令执行成功
 		logs.Logger.Info("local command execute success",
-			zap.String("server_id", s.ID),
+			zap.String("server_id", strconv.Itoa(int(s.ID))),
 			zap.String("cmd", cmd),
 			zap.Duration("time used", time.Since(startTime)),
 			zap.Int("out length", len(result)))
@@ -254,7 +256,7 @@ func (s *Server) ExecuteCommand(cmd string) (string, error) {
 		case <-time.After(30 * time.Second): // 30秒超时
 			if err := session.Signal(ssh.SIGKILL); err != nil {
 				logs.Logger.Warn("execute command failed: overtime ",
-					zap.String("server_id", s.ID),
+					zap.String("server_id", strconv.Itoa(int(s.ID))),
 					zap.String("cmd", cmd),
 					zap.Error(err))
 			}
@@ -277,7 +279,7 @@ func (s *Server) ExecuteCommand(cmd string) (string, error) {
 	// 命令执行成功
 	result := stdoutBuf.String()
 	logs.Logger.Info("command execute successfully",
-		zap.String("server_id", s.ID),
+		zap.String("server_id", strconv.Itoa(int(s.ID))),
 		zap.String("cmd", cmd),
 		zap.Duration("time used", time.Since(startTime)),
 		zap.Int("out string length", len(result)))
@@ -291,7 +293,7 @@ func (s *Server) CheckSSHConnection() bool {
 	// 1. 先快速判断：客户端对象是否为 nil 或状态标记为断开
 	if s.SSHClient == nil || s.Status != constant.Connected {
 		logs.Logger.Debug("SSH connection invalid (client nil or status disconnected)",
-			zap.String("server_id", s.ID))
+			zap.String("server_id", strconv.Itoa(int(s.ID))))
 		return false
 	}
 
@@ -306,7 +308,7 @@ func (s *Server) CheckSSHConnection() bool {
 		s.SSHClient = nil
 		connectionPool.mutex.Unlock()
 		logs.Logger.Warn("SSH connection keepalive failed",
-			zap.String("server_id", s.ID),
+			zap.String("server_id", strconv.Itoa(int(s.ID))),
 			zap.Error(err))
 		return false
 	}
@@ -317,7 +319,7 @@ func (s *Server) CheckSSHConnection() bool {
 	connectionPool.mutex.Unlock()
 
 	logs.Logger.Debug("SSH connection keepalive success",
-		zap.String("server_id", s.ID))
+		zap.String("server_id", strconv.Itoa(int(s.ID))))
 	return true
 }
 
@@ -329,7 +331,7 @@ func (c *ConnectionPool) StartSSHConnectionCheckTicker(interval int) {
 
 	for range ticker.C {
 		c.mutex.RLock() // 读锁：批量读取服务器，不阻塞其他读操作
-		servers := make(map[string]*Server, len(c.servers))
+		servers := make(map[uint]*Server, len(c.servers))
 		for k, v := range c.servers {
 			// 判断是否已超过检测间隔
 			if v.LastCheckTime.Add(time.Duration(interval) * time.Second).Before(time.Now()) {
@@ -343,7 +345,7 @@ func (c *ConnectionPool) StartSSHConnectionCheckTicker(interval int) {
 			// 检测失败时尝试重连
 			if !s.CheckSSHConnection() {
 				logs.Logger.Info("try to reconnect SSH server",
-					zap.String("server_id", s.ID))
+					zap.String("server_id", strconv.Itoa(int(s.ID))))
 
 				client, err := sshConnect(&ServerConfig{
 					AuthMethod: s.AuthMethod,
@@ -355,7 +357,7 @@ func (c *ConnectionPool) StartSSHConnectionCheckTicker(interval int) {
 				})
 				if err != nil {
 					logs.Logger.Error("reconnect SSH server failed",
-						zap.String("server_id", s.ID),
+						zap.String("server_id", strconv.Itoa(int(s.ID))),
 						zap.String("server_ip", s.IP),
 						zap.Error(err),
 					)

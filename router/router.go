@@ -1,8 +1,8 @@
 package router
 
 import (
+	"GolangOM/controller"
 	"GolangOM/middleware"
-	"GolangOM/webUI"
 	"fmt"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/memstore"
@@ -43,21 +43,21 @@ func InitRouter() {
 
 	login := r.Group("")
 	{
-		login.GET("/login", webUI.LoginPageFunc())
-		login.POST("/api/login", webUI.LoginLogicFunc())
+		login.GET("/login", controller.LoginPageFunc())
+		login.POST("/api/login", controller.LoginLogicFunc())
 	}
 
 	pages := r.Group("")
 	pages.Use(middleware.AuthMiddleware())
 	{
-		pages.GET("/golang-om", webUI.IndexPageFunc())
+		pages.GET("/golang-om", controller.IndexPageFunc())
 	}
 
 	apis := r.Group("/api")
 	apis.Use(middleware.AuthMiddleware())
 	{
-		apis.POST("/logout", webUI.LogoutLogicFunc())
-		apis.GET("/user/info", webUI.UserInfoFunc())
+		apis.POST("/logout", controller.LogoutLogicFunc())
+		apis.GET("/user/info", controller.UserInfoFunc())
 	}
 
 	port := viper.GetInt("Server.WebUIPort")

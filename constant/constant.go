@@ -24,4 +24,4 @@ const (
 )
 
 // 本地服务器ID
-const LocalServerID = "LocalHostServer"
+const LocalServerID = 1

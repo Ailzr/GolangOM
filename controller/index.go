@@ -1,4 +1,4 @@
-package webUI
+package controller
 
 import (
 	"GolangOM/response"
