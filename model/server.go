@@ -8,12 +8,12 @@ import (
 
 type ServerModel struct {
 	gorm.Model
-	IP         string              `gorm:"type:varchar(255)"`
-	Port       int                 `gorm:"type:int"`
-	User       string              `gorm:"type:varchar(255)"`
-	AuthMethod constant.AuthMethod `gorm:"type:varchar(255)"` // password 或 key
-	Credential string              `gorm:"type:varchar(255)"` // 密钥路径
-	Password   string              `gorm:"type:varchar(255)"` // 密码 或 密钥的密码
+	IP         string              `gorm:"type:varchar(255)" json:"ip"`
+	Port       int                 `gorm:"type:int" json:"port"`
+	User       string              `gorm:"type:varchar(255)" json:"user"`
+	AuthMethod constant.AuthMethod `gorm:"type:varchar(255)" json:"auth_method"` // password 或 key
+	Credential string              `gorm:"type:varchar(255)" json:"credential"`  // 密钥路径
+	Password   string              `gorm:"type:varchar(255)" json:"password"`    // 密码 或 密钥的密码
 }
 
 func (s *ServerModel) IsExists() bool {

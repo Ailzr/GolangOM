@@ -3,6 +3,7 @@ package pkg
 import (
 	"GolangOM/constant"
 	"GolangOM/logs"
+	"GolangOM/ws"
 	"context"
 	"errors"
 	"fmt"
@@ -41,14 +42,15 @@ func GetAppCheckerManager() *AppCheckerManager {
 	return &appCheckerManager
 }
 
-func (a *AppCheckerManager) NewAppChecker(app *AppCheckConfig) {
+func (a *AppCheckerManager) NewAppChecker(app *AppCheckConfig) error {
 	a.AppCheckerMutex.Lock()
 	defer a.AppCheckerMutex.Unlock()
 	if a.AppCheckerMap[app.ID] != nil {
-		return
+		return fmt.Errorf("app already exists")
 	}
 	a.AppCheckerMap[app.ID] = app
 	app.StartAppChecker()
+	return nil
 }
 
 func (a *AppCheckerManager) GetAppCheckerByID(appID uint) *AppCheckConfig {
@@ -56,6 +58,26 @@ func (a *AppCheckerManager) GetAppCheckerByID(appID uint) *AppCheckConfig {
 		return nil
 	}
 	return a.AppCheckerMap[appID]
+}
+
+func (a *AppCheckerManager) GetAppCheckers() map[uint]*AppCheckConfig {
+	a.AppCheckerMutex.RLock()
+	defer a.AppCheckerMutex.RUnlock()
+	appCheckers := make(map[uint]*AppCheckConfig)
+	for id, app := range a.AppCheckerMap {
+		appCheckers[id] = app
+	}
+	return appCheckers
+}
+
+func (a *AppCheckerManager) RemoveAppCheckerByID(appID uint) {
+	a.AppCheckerMutex.Lock()
+	defer a.AppCheckerMutex.Unlock()
+	if a.AppCheckerMap[appID] == nil {
+		return
+	}
+	a.AppCheckerMap[appID].StopAppChecker()
+	delete(a.AppCheckerMap, appID)
 }
 
 // 启动App检测器
@@ -72,8 +94,12 @@ func (app *AppCheckConfig) StartAppChecker() {
 		for {
 			app.LastCheckTime = time.Now()
 			if !app.CheckAppStatus() {
-				logs.Logger.Warn("App not running", zap.String("app", app.Name))
 				app.LastCheckResult = false
+				ws.SendMessage(ws.Message{
+					AppID:     app.ID,
+					AppStatus: app.LastCheckResult,
+				})
+				logs.Logger.Warn("App not running", zap.String("app", app.Name))
 				// 如果设置为自动重启
 				if app.AutoRestart {
 					logs.Logger.Info("App restarting...", zap.String("app", app.Name))
@@ -83,6 +109,10 @@ func (app *AppCheckConfig) StartAppChecker() {
 						continue
 					}
 					app.LastCheckResult = true
+					ws.SendMessage(ws.Message{
+						AppID:     app.ID,
+						AppStatus: app.LastCheckResult,
+					})
 				}
 			}
 			time.Sleep(time.Duration(app.CheckInterval) * time.Second)

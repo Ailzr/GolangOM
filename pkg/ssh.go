@@ -3,6 +3,7 @@ package pkg
 import (
 	"GolangOM/constant"
 	"GolangOM/logs"
+	"GolangOM/ws"
 	"bytes"
 	"fmt"
 	"github.com/spf13/viper"
@@ -91,7 +92,18 @@ func (c *ConnectionPool) GetServerByID(serverID uint) *Server {
 	return c.servers[serverID]
 }
 
-func addServerToConnectionPool(server *Server) error {
+func (c *ConnectionPool) GetServers() map[uint]*Server {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	servers := make(map[uint]*Server)
+	servers[constant.LocalServerID] = LocalServer
+	for id, server := range c.servers {
+		servers[id] = server
+	}
+	return servers
+}
+
+func (c *ConnectionPool) AddServerToConnectionPool(server *Server) error {
 	connectionPool.mutex.Lock()
 	defer connectionPool.mutex.Unlock()
 	if connectionPool.connectionNumber >= connectionPool.maxConnectionNumber {
@@ -105,20 +117,19 @@ func addServerToConnectionPool(server *Server) error {
 	return nil
 }
 
-// 暂时不提供删除服务器的函数
-//func removeServerFromConnectionPoolByID(serverID string) error {
-//	connectionPool.mutex.Lock()
-//	defer connectionPool.mutex.Unlock()
-//	if _, ok := connectionPool.servers[serverID]; !ok {
-//		return fmt.Errorf("server not exists")
-//	}
-//	if server := connectionPool.servers[serverID]; server.Status == "connected" {
-//		server.SSHClient.Close()
-//	}
-//	delete(connectionPool.servers, serverID)
-//	connectionPool.connectionNumber--
-//	return nil
-//}
+func (c *ConnectionPool) RemoveServerFromConnectionPoolByID(serverID uint) {
+	connectionPool.mutex.Lock()
+	defer connectionPool.mutex.Unlock()
+	if _, ok := connectionPool.servers[serverID]; !ok {
+		return
+	}
+	if server := connectionPool.servers[serverID]; server.Status == "connected" && server.SSHClient != nil {
+		server.SSHClient.Close()
+	}
+	delete(connectionPool.servers, serverID)
+	connectionPool.connectionNumber--
+	return
+}
 
 // 新建连接
 func (c *ConnectionPool) NewConnection(config *ServerConfig) error {
@@ -144,7 +155,7 @@ func (c *ConnectionPool) NewConnection(config *ServerConfig) error {
 
 	// 保存连接并生成UUID
 	server.SSHClient = client
-	err = addServerToConnectionPool(server)
+	err = c.AddServerToConnectionPool(server)
 	if err != nil {
 		return err
 	}
@@ -227,7 +238,7 @@ func (s *Server) ExecuteCommand(cmd string) (string, error) {
 		}
 
 		// 本地命令执行成功
-		logs.Logger.Info("local command execute success",
+		logs.Logger.Debug("local command execute success",
 			zap.String("server_id", strconv.Itoa(int(s.ID))),
 			zap.String("cmd", cmd),
 			zap.Duration("time used", time.Since(startTime)),
@@ -278,7 +289,7 @@ func (s *Server) ExecuteCommand(cmd string) (string, error) {
 
 	// 命令执行成功
 	result := stdoutBuf.String()
-	logs.Logger.Info("command execute successfully",
+	logs.Logger.Debug("command execute successfully",
 		zap.String("server_id", strconv.Itoa(int(s.ID))),
 		zap.String("cmd", cmd),
 		zap.Duration("time used", time.Since(startTime)),
@@ -344,6 +355,12 @@ func (c *ConnectionPool) StartSSHConnectionCheckTicker(interval int) {
 		for _, s := range servers {
 			// 检测失败时尝试重连
 			if !s.CheckSSHConnection() {
+				// websocket广播服务器状态
+				ws.SendMessage(ws.Message{
+					ServerID:     s.ID,
+					ServerStatus: s.Status,
+				})
+
 				logs.Logger.Info("try to reconnect SSH server",
 					zap.String("server_id", strconv.Itoa(int(s.ID))))
 
@@ -369,6 +386,10 @@ func (c *ConnectionPool) StartSSHConnectionCheckTicker(interval int) {
 					existingServer.SSHClient = client
 					existingServer.LastCheckTime = time.Now()
 					existingServer.Status = constant.Connected
+					ws.SendMessage(ws.Message{
+						ServerID:     s.ID,
+						ServerStatus: constant.Connected,
+					})
 				}
 				c.mutex.Unlock()
 			}

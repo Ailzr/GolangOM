@@ -8,13 +8,13 @@ import (
 
 type AppModel struct {
 	gorm.Model
-	ServerID      uint
-	Name          string                `gorm:"type:varchar(255)"`
-	CheckType     constant.AppCheckType `gorm:"type:varchar(255)"` // pid, port, http
-	CheckTarget   string                `gorm:"type:varchar(255)"` // 如进程名、端口号、URL
-	CheckInterval int                   `gorm:"type:int"`          // 检查间隔（秒）
-	StartScript   string                `gorm:"type:varchar(255)"` // 启动脚本路径
-	AutoRestart   bool                  // 是否自动重启
+	ServerID      uint                  `json:"server_id"`
+	Name          string                `gorm:"type:varchar(255)" json:"name"`
+	CheckType     constant.AppCheckType `gorm:"type:varchar(255)" json:"check_type"`   // pid, port, http
+	CheckTarget   string                `gorm:"type:varchar(255)" json:"check_target"` // 如进程名、端口号、URL
+	CheckInterval int                   `gorm:"type:int" json:"check_interval"`        // 检查间隔（秒）
+	StartScript   string                `gorm:"type:varchar(255)" json:"start_script"` // 启动脚本路径
+	AutoRestart   bool                  `json:"auto_restart"`                          // 是否自动重启
 	Server        ServerModel           `gorm:"foreignKey:ServerID"`
 }
 

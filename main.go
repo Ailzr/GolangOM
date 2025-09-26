@@ -83,7 +83,7 @@ func Init() {
 	}
 
 	for _, app := range apps {
-		pkg.GetAppCheckerManager().NewAppChecker(&pkg.AppCheckConfig{
+		err := pkg.GetAppCheckerManager().NewAppChecker(&pkg.AppCheckConfig{
 			AutoRestart:   app.AutoRestart,
 			CheckInterval: app.CheckInterval,
 			CheckTarget:   app.CheckTarget,
@@ -93,6 +93,9 @@ func Init() {
 			ServerID:      app.ServerID,
 			StartScript:   app.StartScript,
 		})
+		if err != nil {
+			logs.Logger.Error("NewAppChecker failed", zap.String("app_id", strconv.Itoa(int(app.ID))), zap.Error(err))
+		}
 	}
 
 }

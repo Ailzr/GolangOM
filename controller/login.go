@@ -1,11 +1,14 @@
 package controller
 
 import (
+	"GolangOM/constant"
+	"GolangOM/logs"
 	"GolangOM/model"
 	"GolangOM/response"
 	"GolangOM/util"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"net/http"
 	"strings"
 )
@@ -36,8 +39,9 @@ func LoginLogicFunc() gin.HandlerFunc {
 		// 2. 使用 ShouldBindJSON 将请求体（JSON）绑定到结构体上
 		// 如果绑定失败（例如，缺少 username 字段），ShouldBindJSON 会返回一个错误
 		if err := c.ShouldBindJSON(&req); err != nil {
-			// 绑定失败，返回 400 Bad Request 和详细的错误信息
-			response.Fail(c, http.StatusBadRequest, 400, "无效的请求格式: "+err.Error())
+			// 绑定失败
+			response.Fail(c, http.StatusBadRequest, constant.ParameterError, "请求参数绑定失败")
+			logs.Logger.Error("请求参数绑定失败: ", zap.Error(err))
 			return // 必须 return，防止继续执行后续代码
 		}
 
@@ -53,7 +57,8 @@ func LoginLogicFunc() gin.HandlerFunc {
 			session := sessions.Default(c)
 			session.Set("username", username)
 			if err := session.Save(); err != nil {
-				response.Fail(c, http.StatusInternalServerError, 500, "登录失败，会话创建失败")
+				response.Fail(c, http.StatusInternalServerError, constant.SessionError, "登录失败，会话创建失败")
+				logs.Logger.Error("登录时创建session 失败: ", zap.Error(err))
 				return
 			}
 
@@ -61,7 +66,7 @@ func LoginLogicFunc() gin.HandlerFunc {
 			response.Success(c, gin.H{"redirect": "/golang-om"})
 		} else {
 			// 登录失败，返回 401 Unauthorized
-			response.Fail(c, http.StatusUnauthorized, 401, "用户名或密码错误")
+			response.Fail(c, http.StatusUnauthorized, constant.AuthError, "用户名或密码错误")
 		}
 	}
 }
@@ -72,7 +77,8 @@ func LogoutLogicFunc() gin.HandlerFunc {
 		session.Clear()                               // 清除 Session 中的所有数据
 		session.Options(sessions.Options{MaxAge: -1}) // 设置 Cookie 立即失效
 		if err := session.Save(); err != nil {
-			response.Fail(c, http.StatusInternalServerError, 500, "退出登录失败")
+			response.Fail(c, http.StatusInternalServerError, constant.SessionError, "退出登录失败")
+			logs.Logger.Error("退出登录失败: ", zap.Error(err))
 			return
 		}
 		response.Success(c, map[string]string{"redirect": "/login"})
