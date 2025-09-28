@@ -159,8 +159,8 @@
     let appsMap = new Map(); // appMap[serverId] = [apps]
     let expandedServers = new Set(); // 记录展开的服务器ID
 
-    // API 基础地址
-    const API_BASE_URL = 'http://localhost:25888/api';
+    // API 基础地址 - 动态获取当前页面的主机和端口
+    const API_BASE_URL = `${window.location.protocol}//${window.location.host}/api`;
 
     // 状态管理函数
     function showLoadingState() {
