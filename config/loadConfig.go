@@ -1,16 +1,17 @@
 package config
 
 import (
+	"os"
+
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
-	"os"
 )
 
 func init() {
 
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
-	// 设置配置文件路径和类型
+	// set configuration file path and type
 	workDir, _ := os.Getwd()
 	viper.SetConfigName("configs.yaml")
 	viper.SetConfigType("yaml")

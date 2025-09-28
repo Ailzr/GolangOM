@@ -2,14 +2,15 @@ package controller
 
 import (
 	"GolangOM/response"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 func IndexPageFunc() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 传递用户名到前端页面，用于显示欢迎信息
+		// pass username to frontend page for welcome message display
 		c.HTML(http.StatusOK, "index.html", nil)
 	}
 }
@@ -20,7 +21,7 @@ func UserInfoFunc() gin.HandlerFunc {
 		response.Success(c, gin.H{
 			"username":  username,
 			"loginTime": time.Now().Unix(),
-			"role":      "管理员",
+			"role":      "admin",
 		})
 	}
 }

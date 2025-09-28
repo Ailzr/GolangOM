@@ -3,11 +3,12 @@ package database
 import (
 	"GolangOM/logs"
 	"fmt"
+	"time"
+
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"time"
 )
 
 var DB *gorm.DB
@@ -32,12 +33,12 @@ func init() {
 		timezone,
 	)
 	connectFailed := true
-	// 尝试链接数据库3次
+	// try to connect to database 3 times
 	for times := 0; times < 3; times++ {
 		DB, err = gorm.Open(mysql.Open(arg), &gorm.Config{})
 		if err != nil {
 			logs.Logger.Error(fmt.Sprintf("MySQL connect failed, times: %d", times+1), zap.Error(err))
-			// 链接失败后等待1秒再重试链接
+			// wait 1 second after connection failure before retrying
 			time.Sleep(1 * time.Second)
 			continue
 		}

@@ -2,19 +2,20 @@ package response
 
 import (
 	"GolangOM/constant"
+
 	"github.com/gin-gonic/gin"
 )
 
-// Response 是一个通用的 API 响应结构体
+// Response is a generic API response struct
 type Response struct {
-	Code    constant.ServiceErrorCode `json:"code"` // 业务状态码
-	Message string                    `json:"msg"`  // 给用户的提示信息
-	Data    interface{}               `json:"data"` // 成功时返回的数据，可为 nil
+	Code    constant.ServiceErrorCode `json:"code"` // business status code
+	Message string                    `json:"msg"`  // user prompt message
+	Data    interface{}               `json:"data"` // data returned on success, can be nil
 }
 
-// --- 你的响应函数可以简化和统一 ---
+// --- your response functions can be simplified and unified ---
 
-// Success 返回一个成功的响应
+// Success returns a successful response
 func Success(c *gin.Context, data interface{}) {
 	c.JSON(200, Response{
 		Code:    200,
@@ -23,10 +24,10 @@ func Success(c *gin.Context, data interface{}) {
 	})
 }
 
-// Fail 返回一个失败的响应
-// httpCode: HTTP 状态码 (e.g., 400, 401, 500)
-// code: 自定义业务错误码
-// msg: 错误信息
+// Fail returns a failed response
+// httpCode: HTTP status code (e.g., 400, 401, 500)
+// code: custom business error code
+// msg: error message
 func Fail(c *gin.Context, httpCode int, code constant.ServiceErrorCode, msg string) {
 	c.JSON(httpCode, Response{
 		Code:    code,

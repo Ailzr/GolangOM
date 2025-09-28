@@ -3,136 +3,851 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>首页</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
-        body { background-color: #f5f7fa; }
-        .header { background-color: #333; color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .logo { font-size: 1.5rem; font-weight: bold; }
-        .user-area { display: flex; align-items: center; gap: 1rem; }
-        .user-info { color: #eee; }
-        #logout-btn { background-color: #f44336; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; transition: background 0.3s; }
-        #logout-btn:hover { background-color: #d32f2f; }
-        #logout-btn:disabled { background-color: #f8a49e; cursor: not-allowed; }
-        .container { max-width: 800px; margin: 2rem auto; background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 15px rgba(0,0,0,0.05); }
-        .welcome-card { text-align: center; padding: 2rem 0; border-bottom: 1px solid #eee; margin-bottom: 2rem; }
-        .welcome-card h1 { color: #333; margin-bottom: 0.5rem; }
-        .welcome-card p { color: #666; font-size: 1.1rem; }
-        .user-detail { padding: 1rem; background-color: #f9fafc; border-radius: 4px; }
-        .user-detail h3 { color: #409eff; margin-bottom: 1rem; }
-        .detail-item { margin-bottom: 0.8rem; color: #666; }
-        .detail-item span { font-weight: bold; color: #333; }
-        .msg { margin-top: 1rem; text-align: center; font-size: 0.9rem; color: #f56c6c; }
-    </style>
+    <title>服务监控中心</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-<div class="header">
-    <div class="logo">我的应用</div>
-    <div class="user-area">
-        <div class="user-info" id="user-info">加载中...</div>
-        <button id="logout-btn">退出登录</button>
+<body class="bg-gray-50 font-sans">
+<div class="container mx-auto px-4 py-8 max-w-6xl">
+    <header class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-800">服务监控中心</h1>
+        <p class="text-gray-600 mt-2">实时监控服务器与应用状态</p>
+    </header>
+
+    <!-- 新建服务器按钮 -->
+    <div class="mb-6">
+        <button id="create-server-btn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">
+            新建服务器连接
+        </button>
+    </div>
+
+    <!-- 服务器列表 -->
+    <div id="server-list" class="space-y-4">
+        <!-- 服务器卡片将通过 JavaScript 动态生成 -->
+        <div id="loading-indicator" class="text-center text-blue-500 py-10 hidden">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <p class="mt-2">正在加载数据...</p>
+        </div>
+        <div id="empty-state" class="text-center text-gray-500 py-10">
+            暂无服务器数据，请添加服务器。
+        </div>
     </div>
 </div>
 
-<div class="container">
-    <div class="welcome-card">
-        <h1>欢迎回来，<span id="welcome-name">用户</span>！</h1>
-        <p>上次登录时间：<span id="last-login">--</span></p>
+<!-- 新建/编辑服务器模态框 -->
+<div id="server-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex justify-center items-center z-50">
+    <div class="bg-white rounded-lg w-full max-w-md p-6 shadow-lg">
+        <h2 id="server-modal-title" class="text-xl font-bold mb-4">新建服务器</h2>
+        <form id="server-form">
+            <input type="hidden" id="server-id">
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2" for="server-ip">IP 地址</label>
+                <input type="text" id="server-ip" required class="w-full px-3 py-2 border rounded">
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2" for="server-port">端口</label>
+                <input type="number" id="server-port" value="22" required class="w-full px-3 py-2 border rounded">
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2" for="server-user">用户名</label>
+                <input type="text" id="server-user" required class="w-full px-3 py-2 border rounded">
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2" for="server-auth">认证方式</label>
+                <select id="server-auth" required class="w-full px-3 py-2 border rounded">
+                    <option value="password">密码</option>
+                    <option value="key">密钥</option>
+                </select>
+            </div>
+            <div id="password-group" class="mb-4">
+                <label class="block text-gray-700 mb-2" for="server-password">密码</label>
+                <input type="password" id="server-password" class="w-full px-3 py-2 border rounded">
+            </div>
+            <div id="key-group" class="mb-4 hidden">
+                <label class="block text-gray-700 mb-2" for="server-credential">密钥路径</label>
+                <input type="text" id="server-credential" placeholder="/root/.ssh/id_rsa" class="w-full px-3 py-2 border rounded">
+                <label class="block text-gray-700 mb-2 mt-2" for="server-key-password">密钥密码 (可选)</label>
+                <input type="password" id="server-key-password" class="w-full px-3 py-2 border rounded">
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button type="button" id="cancel-server-btn" class="px-4 py-2 border rounded hover:bg-gray-100">取消</button>
+                <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">创建</button>
+            </div>
+        </form>
     </div>
-    <div class="user-detail">
-        <h3>账户信息</h3>
-        <div class="detail-item">用户名：<span id="detail-username">--</span></div>
-        <div class="detail-item">角色：<span id="detail-role">--</span></div>
-        <div class="detail-item">登录状态：<span id="login-status" style="color: #67c23a;">已登录</span></div>
+</div>
+
+<!-- 新建/编辑应用模态框 -->
+<div id="app-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex justify-center items-center z-50">
+    <div class="bg-white rounded-lg w-full max-w-md p-6 shadow-lg">
+        <h2 id="app-modal-title" class="text-xl font-bold mb-4">新建应用</h2>
+        <form id="app-form">
+            <input type="hidden" id="app-id">
+            <input type="hidden" id="app-server-id">
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2" for="app-name">应用名称</label>
+                <input type="text" id="app-name" required class="w-full px-3 py-2 border rounded">
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2" for="app-check-type">检查类型</label>
+                <select id="app-check-type" required class="w-full px-3 py-2 border rounded">
+                    <option value="pid">进程名</option>
+                    <option value="port">端口</option>
+                    <option value="http">HTTP</option>
+                </select>
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2" for="app-check-target">检查目标</label>
+                <input type="text" id="app-check-target" placeholder="如: myapp, 8080, http://..." required class="w-full px-3 py-2 border rounded">
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2" for="app-check-interval">检查间隔 (秒)</label>
+                <input type="number" id="app-check-interval" value="10" required class="w-full px-3 py-2 border rounded">
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2" for="app-start-script">启动脚本路径</label>
+                <input type="text" id="app-start-script" placeholder="/path/to/start.sh" required class="w-full px-3 py-2 border rounded">
+            </div>
+            <div class="mb-4">
+                <label class="flex items-center">
+                    <input type="checkbox" id="app-auto-restart" class="mr-2">
+                    <span class="text-gray-700">自动重启</span>
+                </label>
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button type="button" id="cancel-app-btn" class="px-4 py-2 border rounded hover:bg-gray-100">取消</button>
+                <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">创建</button>
+            </div>
+        </form>
     </div>
-    <div id="msg" class="msg"></div>
+</div>
+
+<!-- 确认删除模态框 -->
+<div id="confirm-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex justify-center items-center z-50">
+    <div class="bg-white rounded-lg w-full max-w-md p-6 shadow-lg">
+        <h2 class="text-xl font-bold mb-4 text-red-600">确认删除</h2>
+        <p id="confirm-message" class="text-gray-700 mb-6"></p>
+        <div class="flex justify-end space-x-2">
+            <button id="confirm-cancel-btn" class="px-4 py-2 border rounded hover:bg-gray-100">取消</button>
+            <button id="confirm-delete-btn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded">删除</button>
+        </div>
+    </div>
 </div>
 
 <script>
-    const userInfoDiv = document.getElementById('user-info');
-    const welcomeNameSpan = document.getElementById('welcome-name');
-    const lastLoginSpan = document.getElementById('last-login');
-    const detailUsernameSpan = document.getElementById('detail-username');
-    const detailRoleSpan = document.getElementById('detail-role');
-    const logoutBtn = document.getElementById('logout-btn');
-    const msgDiv = document.getElementById('msg');
+    // DOM 元素
+    const serverListEl = document.getElementById('server-list');
+    const serverModal = document.getElementById('server-modal');
+    const appModal = document.getElementById('app-modal');
+    const createServerBtn = document.getElementById('create-server-btn');
+    const cancelServerBtn = document.getElementById('cancel-server-btn');
+    const cancelAppBtn = document.getElementById('cancel-app-btn');
+    const serverForm = document.getElementById('server-form');
+    const appForm = document.getElementById('app-form');
+    const serverAuthSelect = document.getElementById('server-auth');
+    const passwordGroup = document.getElementById('password-group');
+    const keyGroup = document.getElementById('key-group');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const emptyState = document.getElementById('empty-state');
+    const confirmModal = document.getElementById('confirm-modal');
+    const confirmMessage = document.getElementById('confirm-message');
+    const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
+    const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
 
-    // 页面加载时检测登录状态（核心：未登录则跳转登录页）
-    window.addEventListener('load', async () => {
+    // 数据缓存
+    let servers = [];
+    let appsMap = new Map(); // appMap[serverId] = [apps]
+    let expandedServers = new Set(); // 记录展开的服务器ID
+
+    // API 基础地址
+    const API_BASE_URL = 'http://localhost:25888/api';
+
+    // 状态管理函数
+    function showLoadingState() {
+        loadingIndicator.classList.remove('hidden');
+        emptyState.classList.add('hidden');
+        serverListEl.innerHTML = '';
+        serverListEl.appendChild(loadingIndicator);
+    }
+
+    function showErrorState(message) {
+        loadingIndicator.classList.add('hidden');
+        emptyState.classList.add('hidden');
+        serverListEl.innerHTML = `<div class="text-center text-red-500 py-10">${message}</div>`;
+    }
+
+    function hideLoadingState() {
+        loadingIndicator.classList.add('hidden');
+    }
+
+    // 通知系统
+    function showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${
+            type === 'success' ? 'bg-green-500 text-white' :
+            type === 'error' ? 'bg-red-500 text-white' :
+            'bg-blue-500 text-white'
+        }`;
+        notification.textContent = message;
+        
+        document.body.appendChild(notification);
+        
+        // 3秒后自动移除
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
+    }
+
+    // 页面加载时初始化
+    document.addEventListener('DOMContentLoaded', async () => {
         try {
-            // 调用用户信息 API 校验登录状态
-            const response = await fetch('/api/user/info', {
-                credentials: 'include' // 关键：携带 Cookie（传递 Session ID）
-            });
+            // 显示加载状态
+            showLoadingState();
+            
+            // 2. 使用 await 等待服务器列表加载完成
+            await fetchServerList();
 
-            if (!response.ok) {
-                // 未登录：跳转登录页
-                // window.location.href = '/login';
-                return;
-            }
+            // 3. 在服务器列表加载完成后，再等待应用列表加载完成
+            await fetchAppList();
 
-            // 已登录：解析用户信息并渲染页面
-            const result = await response.json();
-            if (result.code === 200) {
-                const userData = result.data;
-                userInfoDiv.textContent = `当前用户：${userData.username}`;
-                welcomeNameSpan.textContent = userData.username;
-                lastLoginSpan.textContent = userData.loginTime;
-                detailUsernameSpan.textContent = userData.username;
-                detailRoleSpan.textContent = userData.role;
-            } else {
-                window.location.href = '/login';
-            }
-        } catch (err) {
-            showMsg('网络错误，即将跳转登录页...');
-            setTimeout(() => {
-                // window.location.href = '/login';
-            }, 1500);
-            console.error('检测登录状态异常：', err);
+            // 4. 确认两个列表都加载成功后，再执行渲染
+            renderServerList();
+
+            // 初始化其他功能
+            initWebSocket();
+            setupEventListeners();
+        } catch (error) {
+            console.error('初始化数据加载失败:', error);
+            showErrorState('数据加载失败，请刷新页面重试。');
         }
     });
 
-    // 退出登录按钮点击事件
-    logoutBtn.addEventListener('click', async () => {
-        if (!confirm('确定要退出登录吗？退出后需重新登录')) {
+    // 设置事件监听器
+    function setupEventListeners() {
+        // 新建服务器按钮
+        createServerBtn.addEventListener('click', () => {
+            // 重置为新建模式
+            document.getElementById('server-modal-title').textContent = '新建服务器';
+            document.getElementById('server-id').value = '';
+            serverForm.reset();
+            serverModal.classList.remove('hidden');
+        });
+
+        // 取消服务器创建
+        cancelServerBtn.addEventListener('click', () => {
+            serverModal.classList.add('hidden');
+            serverForm.reset();
+        });
+
+        // 取消应用创建
+        cancelAppBtn.addEventListener('click', () => {
+            appModal.classList.add('hidden');
+            appForm.reset();
+        });
+
+        // 取消确认删除
+        confirmCancelBtn.addEventListener('click', () => {
+            confirmModal.classList.add('hidden');
+        });
+
+        // 认证方式切换
+        serverAuthSelect.addEventListener('change', () => {
+            if (serverAuthSelect.value === 'password') {
+                passwordGroup.classList.remove('hidden');
+                keyGroup.classList.add('hidden');
+            } else {
+                passwordGroup.classList.add('hidden');
+                keyGroup.classList.remove('hidden');
+            }
+        });
+
+        // 提交服务器表单
+        serverForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const serverId = document.getElementById('server-id').value;
+            const serverData = {
+                ip: document.getElementById('server-ip').value,
+                port: parseInt(document.getElementById('server-port').value),
+                user: document.getElementById('server-user').value,
+                auth_method: document.getElementById('server-auth').value,
+                password: document.getElementById('server-password').value,
+                credential: document.getElementById('server-credential').value,
+            };
+            
+            if (serverData.auth_method === 'key') {
+                serverData.password = document.getElementById('server-key-password').value;
+            }
+            
+            if (serverId) {
+                // 编辑模式
+                serverData.id = parseInt(serverId);
+                await updateServer(serverData);
+            } else {
+                // 新建模式
+                await createServer(serverData);
+            }
+        });
+
+        // 提交应用表单
+        appForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const appId = document.getElementById('app-id').value;
+            const appData = {
+                server_id: parseInt(document.getElementById('app-server-id').value),
+                name: document.getElementById('app-name').value,
+                check_type: document.getElementById('app-check-type').value,
+                check_target: document.getElementById('app-check-target').value,
+                check_interval: parseInt(document.getElementById('app-check-interval').value),
+                start_script: document.getElementById('app-start-script').value,
+                auto_restart: document.getElementById('app-auto-restart').checked,
+            };
+            
+            if (appId) {
+                // 编辑模式
+                appData.id = parseInt(appId);
+                await updateApp(appData);
+            } else {
+                // 新建模式
+                await createApp(appData);
+            }
+        });
+    }
+
+    // 获取服务器列表
+    async function fetchServerList() {
+        const response = await fetch(`${API_BASE_URL}/server/list`, {
+            credentials: 'include' // 携带Cookie
+        });
+        if (!response.ok) throw new Error('获取服务器列表失败');
+        const data = await response.json();
+        if (data.code === 200) {
+            servers = data.data.servers;
+        } else {
+            throw new Error(data.msg || '获取服务器列表失败');
+        }
+    }
+
+    // 获取应用列表
+    async function fetchAppList() {
+        const response = await fetch(`${API_BASE_URL}/app/list`, {
+            credentials: 'include' // 携带Cookie
+        });
+        if (!response.ok) throw new Error('获取应用列表失败');
+        const data = await response.json();
+        if (data.code === 200) {
+            const apps = data.data.apps;
+            appsMap.clear(); // 先清空，防止数据重复
+            apps.forEach(app => {
+                if (!appsMap.has(app.server_id)) {
+                    appsMap.set(app.server_id, []);
+                }
+                appsMap.get(app.server_id).push(app);
+            });
+        } else {
+            throw new Error(data.msg || '获取应用列表失败');
+        }
+    }
+
+    // 创建服务器
+    async function createServer(serverData) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/server/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(serverData),
+                credentials: 'include' // 携带Cookie
+            });
+            if (!response.ok) throw new Error('创建服务器失败');
+            const data = await response.json();
+            if (data.code === 200) {
+                showNotification('服务器创建成功！', 'success');
+                serverModal.classList.add('hidden');
+                serverForm.reset();
+                await fetchServerList(); // 刷新列表
+                renderServerList();
+            } else {
+                showNotification(`创建失败: ${data.msg}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error creating server:', error);
+            showNotification('创建服务器时发生网络错误', 'error');
+        }
+    }
+
+    // 创建应用
+    async function createApp(appData) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/app/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(appData),
+                credentials: 'include' // 携带Cookie
+            });
+            if (!response.ok) throw new Error('创建应用失败');
+            const data = await response.json();
+            if (data.code === 200) {
+                showNotification('应用创建成功！', 'success');
+                appModal.classList.add('hidden');
+                appForm.reset();
+                await fetchAppList(); // 刷新列表
+                renderServerList();
+            } else {
+                showNotification(`创建失败: ${data.msg}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error creating app:', error);
+            showNotification('创建应用时发生网络错误', 'error');
+        }
+    }
+
+    // 渲染服务器列表
+    function renderServerList() {
+        hideLoadingState();
+        
+        if (servers.length === 0) {
+            emptyState.classList.remove('hidden');
             return;
         }
+        
+        emptyState.classList.add('hidden');
 
-        // 禁用按钮防止重复提交
-        logoutBtn.disabled = true;
-        logoutBtn.textContent = '退出中...';
-        showMsg('');
+        serverListEl.innerHTML = '';
+        servers.forEach(server => {
+            const apps = appsMap.get(server.id) || [];
+            const isConnected = server.check_result === 'connected';
+            const serverCard = document.createElement('div');
+            serverCard.className = 'bg-white rounded-lg shadow-sm overflow-hidden';
+            serverCard.innerHTML = `
+                    <div class="p-4 cursor-pointer server-header" data-server-id="${server.id}">
+                        <div class="flex justify-between items-center">
+                            <h3 class="font-semibold text-lg">${server.ip}:${server.port}</h3>
+                            <div class="flex items-center space-x-2">
+                                <span class="px-3 py-1 rounded-full text-xs font-medium ${isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                                    ${isConnected ? '已连接' : '未连接'}
+                                </span>
+                                <button class="text-blue-500 hover:text-blue-700 text-sm edit-server-btn" data-server-id="${server.id}" title="编辑服务器">
+                                    <i>✏️</i>
+                                </button>
+                                <button class="text-red-500 hover:text-red-700 text-sm delete-server-btn" data-server-id="${server.id}" title="删除服务器">
+                                    <i>🗑️</i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mt-2 text-sm text-gray-600">
+                            <p>认证方式: ${server.auth_method === 'password' ? '密码' : '密钥'}</p>
+                            <p>上次检查: ${new Date(server.check_time).toLocaleString()}</p>
+                        </div>
+                    </div>
+                    <div class="border-t border-gray-100 server-apps ${expandedServers.has(server.id) ? '' : 'hidden'}">
+                        <div class="p-4 border-b border-gray-100">
+                            <button class="text-blue-500 hover:text-blue-700 text-sm create-app-btn" data-server-id="${server.id}">
+                                <i>+</i> 新建应用
+                            </button>
+                        </div>
+                        <div class="divide-y divide-gray-100">
+                            ${apps.length > 0 ? apps.map(app => `
+                                <div class="p-4 flex justify-between items-center">
+                                    <div>
+                                        <h4 class="font-medium">${app.name}</h4>
+                                        <p class="text-sm text-gray-600">类型: ${getCheckTypeName(app.check_type)}, 目标: ${app.check_target}</p>
+                                        <p class="text-sm text-gray-600">启动脚本: ${app.start_script}</p>
+                                        <p class="text-sm text-gray-600">上次检查: ${new Date(app.last_check_time).toLocaleString()}</p>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="px-3 py-1 rounded-full text-xs font-medium ${app.check_result ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                                            ${app.check_result ? '运行中' : '已停止'}
+                                        </span>
+                                        <button class="text-blue-500 hover:text-blue-700 text-sm edit-app-btn" data-app-id="${app.id}" title="编辑应用">
+                                            <i>✏️</i>
+                                        </button>
+                                        <button class="text-red-500 hover:text-red-700 text-sm delete-app-btn" data-app-id="${app.id}" title="删除应用">
+                                            <i>🗑️</i>
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('') : `
+                                <div class="p-4 text-center text-gray-500">
+                                    暂无应用，请为该服务器添加应用。
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                `;
+            serverListEl.appendChild(serverCard);
+        });
 
+        // 为服务器标题添加点击展开/折叠事件
+        document.querySelectorAll('.server-header').forEach(header => {
+            header.addEventListener('click', () => {
+                const serverId = parseInt(header.getAttribute('data-server-id'));
+                const appsEl = header.nextElementSibling;
+                const isHidden = appsEl.classList.contains('hidden');
+                
+                if (isHidden) {
+                    appsEl.classList.remove('hidden');
+                    expandedServers.add(serverId);
+                } else {
+                    appsEl.classList.add('hidden');
+                    expandedServers.delete(serverId);
+                }
+            });
+        });
+
+        // 为新建应用按钮添加点击事件
+        document.querySelectorAll('.create-app-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation(); // 防止触发服务器标题的点击事件
+                const serverId = btn.getAttribute('data-server-id');
+                
+                // 重置为新建模式
+                document.getElementById('app-modal-title').textContent = '新建应用';
+                document.getElementById('app-id').value = '';
+                document.getElementById('app-server-id').value = serverId;
+                appForm.reset();
+                document.getElementById('app-server-id').value = serverId; // 重新设置服务器ID
+                appModal.classList.remove('hidden');
+            });
+        });
+
+        // 为编辑服务器按钮添加点击事件
+        document.querySelectorAll('.edit-server-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation(); // 防止触发服务器标题的点击事件
+                const serverId = btn.getAttribute('data-server-id');
+                editServer(serverId);
+            });
+        });
+
+        // 为删除服务器按钮添加点击事件
+        document.querySelectorAll('.delete-server-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation(); // 防止触发服务器标题的点击事件
+                const serverId = btn.getAttribute('data-server-id');
+                const server = servers.find(s => s.id == serverId);
+                if (server) {
+                    deleteServer(serverId, server.ip, server.port);
+                }
+            });
+        });
+
+        // 为编辑应用按钮添加点击事件
+        document.querySelectorAll('.edit-app-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation(); // 防止触发其他事件
+                const appId = btn.getAttribute('data-app-id');
+                editApp(appId);
+            });
+        });
+
+        // 为删除应用按钮添加点击事件
+        document.querySelectorAll('.delete-app-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation(); // 防止触发其他事件
+                const appId = btn.getAttribute('data-app-id');
+                // 找到对应的应用
+                let app = null;
+                for (const [serverId, apps] of appsMap.entries()) {
+                    const foundApp = apps.find(a => a.id == appId);
+                    if (foundApp) {
+                        app = foundApp;
+                        break;
+                    }
+                }
+                if (app) {
+                    deleteApp(appId, app.name);
+                }
+            });
+        });
+    }
+
+    // 根据检查类型获取中文名称
+    function getCheckTypeName(type) {
+        const map = { 'pid': '进程', 'port': '端口', 'http': 'HTTP' };
+        return map[type] || type;
+    }
+
+    // 编辑服务器
+    async function editServer(serverId) {
         try {
-            // 调用退出 API
-            const response = await fetch('/api/logout', {
+            const response = await fetch(`${API_BASE_URL}/server/get`, {
                 method: 'POST',
-                credentials: 'include' // 关键：携带 Cookie（销毁 Session 需验证）
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: parseInt(serverId) }),
+                credentials: 'include'
             });
 
-            const result = await response.json();
-            if (result.code === 200) {
-                // 退出成功：跳转登录页
-                showMsg('退出成功，即将跳转登录页...');
-                setTimeout(() => {
-                    window.location.href = result.data.redirect;
-                }, 1000);
+            if (!response.ok) throw new Error('获取服务器信息失败');
+            const data = await response.json();
+            
+            if (data.code === 200) {
+                const server = data.data.server;
+                
+                // 设置模态框标题
+                document.getElementById('server-modal-title').textContent = '编辑服务器';
+                
+                // 填充表单数据
+                document.getElementById('server-id').value = server.id;
+                document.getElementById('server-ip').value = server.ip;
+                document.getElementById('server-port').value = server.port;
+                document.getElementById('server-user').value = server.user;
+                document.getElementById('server-auth').value = server.auth_method;
+                
+                // 根据认证方式显示相应字段
+                if (server.auth_method === 'password') {
+                    passwordGroup.classList.remove('hidden');
+                    keyGroup.classList.add('hidden');
+                } else {
+                    passwordGroup.classList.add('hidden');
+                    keyGroup.classList.remove('hidden');
+                }
+                
+                // 显示模态框
+                serverModal.classList.remove('hidden');
             } else {
-                showMsg(result.msg);
+                showNotification(`获取服务器信息失败: ${data.msg}`, 'error');
             }
-        } catch (err) {
-            showMsg('网络错误，退出失败');
-            console.error('退出登录异常：', err);
-        } finally {
-            // 恢复按钮状态
-            logoutBtn.disabled = false;
-            logoutBtn.textContent = '退出登录';
+        } catch (error) {
+            console.error('Error fetching server:', error);
+            showNotification('获取服务器信息时发生网络错误', 'error');
         }
-    });
+    }
 
-    // 显示提示消息
-    function showMsg(text) {
-        msgDiv.textContent = text;
+    // 更新服务器
+    async function updateServer(serverData) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/server/update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(serverData),
+                credentials: 'include'
+            });
+
+            if (!response.ok) throw new Error('更新服务器失败');
+            const data = await response.json();
+            
+            if (data.code === 200) {
+                showNotification('服务器更新成功！', 'success');
+                serverModal.classList.add('hidden');
+                serverForm.reset();
+                await fetchServerList();
+                renderServerList();
+            } else {
+                showNotification(`更新失败: ${data.msg}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error updating server:', error);
+            showNotification('更新服务器时发生网络错误', 'error');
+        }
+    }
+
+    // 编辑应用
+    async function editApp(appId) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/app/get`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: parseInt(appId) }),
+                credentials: 'include'
+            });
+
+            if (!response.ok) throw new Error('获取应用信息失败');
+            const data = await response.json();
+            
+            if (data.code === 200) {
+                const app = data.data.app;
+                
+                // 设置模态框标题
+                document.getElementById('app-modal-title').textContent = '编辑应用';
+                
+                // 填充表单数据
+                document.getElementById('app-id').value = app.id;
+                document.getElementById('app-server-id').value = app.server_id;
+                document.getElementById('app-name').value = app.name;
+                document.getElementById('app-check-type').value = app.check_type;
+                document.getElementById('app-check-target').value = app.check_target;
+                document.getElementById('app-check-interval').value = app.check_interval;
+                document.getElementById('app-start-script').value = app.start_script;
+                document.getElementById('app-auto-restart').checked = app.auto_restart;
+                
+                // 显示模态框
+                appModal.classList.remove('hidden');
+            } else {
+                showNotification(`获取应用信息失败: ${data.msg}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error fetching app:', error);
+            showNotification('获取应用信息时发生网络错误', 'error');
+        }
+    }
+
+    // 更新应用
+    async function updateApp(appData) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/app/update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(appData),
+                credentials: 'include'
+            });
+
+            if (!response.ok) throw new Error('更新应用失败');
+            const data = await response.json();
+            
+            if (data.code === 200) {
+                showNotification('应用更新成功！', 'success');
+                appModal.classList.add('hidden');
+                appForm.reset();
+                await fetchAppList();
+                renderServerList();
+            } else {
+                showNotification(`更新失败: ${data.msg}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error updating app:', error);
+            showNotification('更新应用时发生网络错误', 'error');
+        }
+    }
+
+    // 删除服务器
+    function deleteServer(serverId, serverIp, serverPort) {
+        confirmMessage.textContent = `确定要删除服务器 ${serverIp}:${serverPort} 吗？\n\n注意：删除服务器会同时删除该服务器下的所有应用！`;
+        confirmModal.classList.remove('hidden');
+        
+        // 设置确认删除按钮的点击事件
+        confirmDeleteBtn.onclick = async () => {
+            confirmModal.classList.add('hidden');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/server/delete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: parseInt(serverId) }),
+                    credentials: 'include'
+                });
+
+                if (!response.ok) throw new Error('删除服务器失败');
+                const data = await response.json();
+                
+                if (data.code === 200) {
+                    showNotification('服务器删除成功！', 'success');
+                    // 刷新数据
+                    await fetchServerList();
+                    await fetchAppList();
+                    renderServerList();
+                } else {
+                    showNotification(`删除失败: ${data.msg}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting server:', error);
+                showNotification('删除服务器时发生网络错误', 'error');
+            }
+        };
+    }
+
+    // 删除应用
+    function deleteApp(appId, appName) {
+        confirmMessage.textContent = `确定要删除应用 "${appName}" 吗？`;
+        confirmModal.classList.remove('hidden');
+        
+        // 设置确认删除按钮的点击事件
+        confirmDeleteBtn.onclick = async () => {
+            confirmModal.classList.add('hidden');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/app/delete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: parseInt(appId) }),
+                    credentials: 'include'
+                });
+
+                if (!response.ok) throw new Error('删除应用失败');
+                const data = await response.json();
+                
+                if (data.code === 200) {
+                    showNotification('应用删除成功！', 'success');
+                    // 刷新数据
+                    await fetchAppList();
+                    renderServerList();
+                } else {
+                    showNotification(`删除失败: ${data.msg}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting app:', error);
+                showNotification('删除应用时发生网络错误', 'error');
+            }
+        };
+    }
+
+    // 初始化 WebSocket 连接
+    function initWebSocket() {
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUri = `${wsProtocol}//${window.location.host}/api/ws`;
+        const socket = new WebSocket(wsUri);
+
+        socket.onopen = () => {
+            console.log('WebSocket 连接已建立');
+        };
+
+        socket.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                console.log('收到 WebSocket 消息:', message);
+
+                // 根据消息更新 UI
+                if (message.server_id !== 0) {
+                    // 更新服务器状态
+                    const serverIndex = servers.findIndex(s => s.id === message.server_id);
+                    if (serverIndex !== -1) {
+                        console.log(`更新前服务器 ${message.server_id} 状态: ${servers[serverIndex].check_result}`);
+                        servers[serverIndex].check_result = message.server_status;
+                        servers[serverIndex].check_time = new Date().toISOString();
+                        console.log(`更新后服务器 ${message.server_id} 状态: ${servers[serverIndex].check_result}`);
+                    } else {
+                        console.log(`未找到服务器 ID: ${message.server_id}`);
+                    }
+                }
+
+                if (message.app_id !== 0) {
+                    // 更新应用状态
+                    let found = false;
+                    for (const [serverId, apps] of appsMap.entries()) {
+                        const appIndex = apps.findIndex(a => a.id === message.app_id);
+                        if (appIndex !== -1) {
+                            console.log(`更新前应用 ${message.app_id} 状态: ${apps[appIndex].check_result}`);
+                            apps[appIndex].check_result = message.app_status;
+                            apps[appIndex].last_check_time = new Date().toISOString();
+                            console.log(`更新后应用 ${message.app_id} 状态: ${apps[appIndex].check_result}`);
+                            found = true;
+                            break; // 找到后跳出循环
+                        }
+                    }
+                    if (!found) {
+                        console.log(`未找到应用 ID: ${message.app_id}`);
+                    }
+                }
+
+                // 重新渲染以反映状态变化
+                console.log('重新渲染服务器列表，当前展开状态:', Array.from(expandedServers));
+                renderServerList();
+
+            } catch (error) {
+                console.error('解析 WebSocket 消息失败:', error);
+            }
+        };
+
+        socket.onclose = (event) => {
+            console.log('WebSocket 连接已关闭', event.code, event.reason);
+            if (event.code !== 1000) { // 非正常关闭
+                console.log('将在 3 秒后尝试重连...');
+                setTimeout(initWebSocket, 3000);
+            }
+        };
+
+        socket.onerror = (error) => {
+            console.error('WebSocket 发生错误:', error);
+            showNotification('WebSocket连接失败，请检查网络连接', 'error');
+        };
     }
 </script>
 </body>

@@ -9,12 +9,13 @@ import (
 	"GolangOM/pkg"
 	"GolangOM/router"
 	"GolangOM/util"
-	"go.uber.org/zap"
 	"strconv"
+
+	"go.uber.org/zap"
 )
 
 func main() {
-	// 确保日志文件关闭
+	// ensure log file is closed
 	defer logs.Logger.Sync()
 
 	Init()
@@ -32,7 +33,7 @@ func Init() {
 	}
 
 	user := model.User{Username: "admin"}
-	// 如果没有管理员用户，则创建一个管理员用户
+	// if no admin user exists, create an admin user
 	if !user.IsExists() {
 		user.Password = util.GetMd5("123456")
 		user.Role = "admin"
@@ -63,7 +64,7 @@ func Init() {
 		if server.ID == constant.LocalServerID {
 			continue
 		}
-		// 用协程去建立连接，避免阻塞主线程
+		// use goroutine to establish connection, avoid blocking main thread
 		go func() {
 			err := pkg.GetConnectionPool().NewConnection(&pkg.ServerConfig{
 				AuthMethod: server.AuthMethod,
@@ -86,7 +87,7 @@ func Init() {
 	}
 
 	for _, app := range apps {
-		// 用协程去建立连接，避免阻塞主线程
+		// use goroutine to establish connection, avoid blocking main thread
 		go func() {
 			err := pkg.GetAppCheckerManager().NewAppChecker(&pkg.AppCheckConfig{
 				AutoRestart:   app.AutoRestart,

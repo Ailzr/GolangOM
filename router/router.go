@@ -5,22 +5,23 @@ import (
 	"GolangOM/middleware"
 	"GolangOM/ws"
 	"fmt"
+	"net/http"
+
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/memstore"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
-	"net/http"
 )
 
 func InitRouter() {
 	r := gin.Default()
 
-	store := memstore.NewStore([]byte("secret-key-123")) // 加密密钥（生产环境需复杂密钥）
-	// 配置 Session 特性：
-	// - CookieName: Session ID 存储在 Cookie 中的键名
-	// - MaxAge: 0 表示“浏览器会话级”（关闭浏览器后 Cookie 失效）
-	// - Path: "/" 表示所有路径都生效
-	// - HttpOnly: true 防止前端 JS 读取 Cookie，避免 XSS 攻击
+	store := memstore.NewStore([]byte("secret-key-123")) // encryption key (production environment needs complex key)
+	// configure Session features:
+	// - CookieName: key name for Session ID stored in Cookie
+	// - MaxAge: 0 means "browser session level" (Cookie expires after browser closes)
+	// - Path: "/" means effective for all paths
+	// - HttpOnly: true prevents frontend JS from reading Cookie, avoiding XSS attacks
 	devMode := viper.GetBool("Server.Development")
 	secure := true
 	if devMode {
@@ -31,11 +32,11 @@ func InitRouter() {
 	r.Use(sessions.Sessions("gin-session-id", store), func(c *gin.Context) {
 		session := sessions.Default(c)
 		session.Options(sessions.Options{
-			MaxAge:   0,                    // 会话级 Cookie（关闭浏览器失效）
-			Path:     "/",                  // 所有路径生效
-			HttpOnly: true,                 // 禁止前端 JS 访问 Cookie
-			Secure:   secure,               // 开发环境用 false（HTTP），生产环境用 true（HTTPS）
-			SameSite: http.SameSiteLaxMode, // 防止 CSRF 攻击
+			MaxAge:   0,                    // session level Cookie (expires when browser closes)
+			Path:     "/",                  // effective for all paths
+			HttpOnly: true,                 // prevent frontend JS from accessing Cookie
+			Secure:   secure,               // false for development (HTTP), true for production (HTTPS)
+			SameSite: http.SameSiteLaxMode, // prevent CSRF attacks
 		})
 		c.Next()
 	})
@@ -60,11 +61,15 @@ func InitRouter() {
 		apis.POST("/logout", controller.LogoutLogicFunc())
 		apis.GET("/user/info", controller.UserInfoFunc())
 		apis.GET("/server/list", controller.GetServerListFunc())
+		apis.POST("/server/get", controller.GetServerFunc())
 		apis.POST("/server/create", controller.CreateServerFunc())
 		apis.POST("/server/update", controller.UpdateServerFunc())
+		apis.POST("/server/delete", controller.DeleteServerFunc())
 		apis.GET("/app/list", controller.GetAppListFunc())
+		apis.POST("/app/get", controller.GetAppFunc())
 		apis.POST("/app/create", controller.CreateAppFunc())
 		apis.POST("/app/update", controller.UpdateAppFunc())
+		apis.POST("/app/delete", controller.DeleteAppFunc())
 
 		apis.GET("/ws", ws.WebsocketFunc())
 	}

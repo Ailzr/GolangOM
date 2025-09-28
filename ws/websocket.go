@@ -4,17 +4,18 @@ import (
 	"GolangOM/constant"
 	"GolangOM/logs"
 	"context"
-	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
-	"go.uber.org/zap"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 )
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		return true // 生产环境应配置具体域名
+		return true // production environment should configure specific domain
 	},
 }
 
@@ -36,23 +37,24 @@ type Message struct {
 }
 
 const (
-	maxLiveTime       = 60 //允许ws连接最大的存活时间, 单位秒
-	heartBeatInterval = 30 //心跳机制发送ping消息的时间, 单位秒
+	maxLiveTime       = 60 // maximum survival time for ws connection, in seconds
+	heartBeatInterval = 30 // heartbeat mechanism ping message time, in seconds
 )
 
-// 创建WebSocket路由处理
+// create WebSocket route handler
 func WebsocketFunc() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		username, ok := c.Get("username")
 		if !ok {
 			logs.Logger.Debug("user not login")
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "not logged in"})
 			return
 		}
 		handleWebSocketConnection(c, username.(string))
 	}
 }
 
-// 处理WebSocket连接
+// handle WebSocket connection
 func handleWebSocketConnection(c *gin.Context, username string) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
@@ -61,22 +63,22 @@ func handleWebSocketConnection(c *gin.Context, username string) {
 	}
 	defer conn.Close()
 
-	// 注册用户连接
+	// register user connection
 	storeConnection(username, conn)
 	defer removeConnection(username)
 
-	// 初始化连接设置
+	// initialize connection settings
 	initConnectionSettings(conn)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	// 开启心跳协程
+	// start heartbeat goroutine
 	go StartHeartbeat(ctx, conn)
 
 	for {
 		_, _, err := conn.ReadMessage()
 		if err != nil {
-			// 打印详细的错误日志，方便调试
+			// print detailed error logs for debugging
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 				logs.Logger.Debug("client close websocket connection", zap.String("username", username))
 			} else {
@@ -87,7 +89,7 @@ func handleWebSocketConnection(c *gin.Context, username string) {
 	}
 }
 
-// 存储连接信息
+// store connection information
 func storeConnection(username string, conn *websocket.Conn) {
 	wsPool.mutex.Lock()
 	defer wsPool.mutex.Unlock()
@@ -98,7 +100,7 @@ func storeConnection(username string, conn *websocket.Conn) {
 	logs.Logger.Debug("user connect", zap.String("username", username))
 }
 
-// 移除连接信息
+// remove connection information
 func removeConnection(username string) {
 	wsPool.mutex.Lock()
 	defer wsPool.mutex.Unlock()
@@ -106,7 +108,7 @@ func removeConnection(username string) {
 	logs.Logger.Debug("user disconnect", zap.String("username", username))
 }
 
-// 初始化连接设置
+// initialize connection settings
 func initConnectionSettings(conn *websocket.Conn) {
 	conn.SetReadLimit(512)
 	if err := conn.SetReadDeadline(time.Now().Add(maxLiveTime * time.Second)); err != nil {
@@ -114,7 +116,7 @@ func initConnectionSettings(conn *websocket.Conn) {
 	}
 	conn.SetPongHandler(func(appData string) error {
 		logs.Logger.Debug("update heartbeat")
-		// 每次收到 Pong 重置 ReadDeadline
+		// reset ReadDeadline every time Pong is received
 		if err := conn.SetReadDeadline(time.Now().Add(maxLiveTime * time.Second)); err != nil {
 			logs.Logger.Error("reset ReadDeadline failed", zap.Error(err))
 			return err

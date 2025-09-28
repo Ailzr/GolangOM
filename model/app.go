@@ -3,6 +3,7 @@ package model
 import (
 	"GolangOM/constant"
 	"GolangOM/database"
+
 	"gorm.io/gorm"
 )
 
@@ -11,10 +12,10 @@ type AppModel struct {
 	ServerID      uint                  `json:"server_id"`
 	Name          string                `gorm:"type:varchar(255)" json:"name"`
 	CheckType     constant.AppCheckType `gorm:"type:varchar(255)" json:"check_type"`   // pid, port, http
-	CheckTarget   string                `gorm:"type:varchar(255)" json:"check_target"` // 如进程名、端口号、URL
-	CheckInterval int                   `gorm:"type:int" json:"check_interval"`        // 检查间隔（秒）
-	StartScript   string                `gorm:"type:varchar(255)" json:"start_script"` // 启动脚本路径
-	AutoRestart   bool                  `json:"auto_restart"`                          // 是否自动重启
+	CheckTarget   string                `gorm:"type:varchar(255)" json:"check_target"` // such as process name, port number, URL
+	CheckInterval int                   `gorm:"type:int" json:"check_interval"`        // check interval (seconds)
+	StartScript   string                `gorm:"type:varchar(255)" json:"start_script"` // startup script path
+	AutoRestart   bool                  `json:"auto_restart"`                          // whether to auto restart
 	Server        ServerModel           `gorm:"foreignKey:ServerID"`
 }
 

@@ -7,10 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"go.uber.org/zap"
 	"strconv"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type AppCheckConfig struct {
@@ -18,11 +19,11 @@ type AppCheckConfig struct {
 	ServerID        uint
 	Name            string
 	CheckType       constant.AppCheckType // pid, port, http
-	CheckTarget     string                // 如进程名、端口号、URL
-	CheckInterval   int                   // 检查间隔（秒）
-	StartScript     string                // 启动脚本路径
+	CheckTarget     string                // such as process name, port number, URL
+	CheckInterval   int                   // check interval (seconds)
+	StartScript     string                // startup script path
 	LastCheckResult bool
-	AutoRestart     bool // 是否自动重启
+	AutoRestart     bool // whether to auto restart
 	LastCheckTime   time.Time
 	ctx             context.Context
 	cancel          context.CancelFunc
@@ -60,12 +61,12 @@ func (a *AppCheckerManager) GetAppCheckerByID(appID uint) *AppCheckConfig {
 	return a.AppCheckerMap[appID]
 }
 
-func (a *AppCheckerManager) GetAppCheckers() map[uint]*AppCheckConfig {
+func (a *AppCheckerManager) GetAppCheckers() []*AppCheckConfig {
 	a.AppCheckerMutex.RLock()
 	defer a.AppCheckerMutex.RUnlock()
-	appCheckers := make(map[uint]*AppCheckConfig)
-	for id, app := range a.AppCheckerMap {
-		appCheckers[id] = app
+	appCheckers := make([]*AppCheckConfig, 0, len(a.AppCheckerMap))
+	for _, app := range a.AppCheckerMap {
+		appCheckers = append(appCheckers, app)
 	}
 	return appCheckers
 }
@@ -80,7 +81,7 @@ func (a *AppCheckerManager) RemoveAppCheckerByID(appID uint) {
 	delete(a.AppCheckerMap, appID)
 }
 
-// 启动App检测器
+// start App checker
 func (app *AppCheckConfig) StartAppChecker() {
 	if app.cancel != nil {
 		app.cancel()
@@ -93,14 +94,16 @@ func (app *AppCheckConfig) StartAppChecker() {
 		defer ticker.Stop()
 		for {
 			app.LastCheckTime = time.Now()
-			if !app.CheckAppStatus() {
+			isRunning := app.CheckAppStatus()
+
+			if !isRunning {
 				app.LastCheckResult = false
 				ws.SendMessage(ws.Message{
 					AppID:     app.ID,
 					AppStatus: app.LastCheckResult,
 				})
 				logs.Logger.Warn("App not running", zap.String("app", app.Name))
-				// 如果设置为自动重启
+				// if auto restart is enabled
 				if app.AutoRestart {
 					logs.Logger.Info("App restarting...", zap.String("app", app.Name))
 					err := app.StartApp()
@@ -115,8 +118,23 @@ func (app *AppCheckConfig) StartAppChecker() {
 						AppStatus: app.LastCheckResult,
 					})
 				}
+			} else {
+				// also update status when app is running normally
+				if !app.LastCheckResult {
+					app.LastCheckResult = true
+					ws.SendMessage(ws.Message{
+						AppID:     app.ID,
+						AppStatus: app.LastCheckResult,
+					})
+				}
 			}
-			time.Sleep(time.Duration(app.CheckInterval) * time.Second)
+
+			select {
+			case <-app.ctx.Done():
+				return
+			case <-ticker.C:
+				continue
+			}
 		}
 	}()
 }
@@ -150,6 +168,15 @@ func (app *AppCheckConfig) CheckAppStatus() bool {
 		logs.Logger.Debug("app check result:", zap.String("pid", result))
 		return len(result) > 0
 	} else if app.CheckType == constant.AppCheckTypeHttp {
+		// HTTP check: use curl command to check if URL is accessible
+		result, err := server.ExecuteCommand(fmt.Sprintf("curl -s -o /dev/null -w '%%{http_code}' %s", app.CheckTarget))
+		if err != nil {
+			logs.Logger.Error("HTTP check error", zap.Error(err))
+			return false
+		}
+		logs.Logger.Debug("HTTP check result:", zap.String("status_code", result))
+		// check if HTTP status code is 2xx or 3xx
+		return len(result) > 0 && (result[0] == '2' || result[0] == '3')
 	}
 	return false
 }

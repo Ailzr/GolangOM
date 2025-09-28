@@ -6,14 +6,15 @@ import (
 	"GolangOM/ws"
 	"bytes"
 	"fmt"
-	"github.com/spf13/viper"
-	"go.uber.org/zap"
-	"golang.org/x/crypto/ssh"
 	"os"
 	"os/exec"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/spf13/viper"
+	"go.uber.org/zap"
+	"golang.org/x/crypto/ssh"
 )
 
 var LocalServer = &Server{
@@ -23,26 +24,26 @@ var LocalServer = &Server{
 	SSHClient: nil,
 }
 
-// 对外暴露的用于创建链接的结构体
+// struct exposed for creating connections
 type ServerConfig struct {
 	ID         uint
 	IP         string
 	Port       int
 	User       string
-	AuthMethod constant.AuthMethod // password 或 key
-	Credential string              // 密钥路径
-	Password   string              // 密码 或 密钥的密码
+	AuthMethod constant.AuthMethod // password or key
+	Credential string              // key path
+	Password   string              // password or key password
 }
 
-// 服务器结构体
+// server struct
 type Server struct {
 	ID            uint
 	IP            string
 	Port          int
 	User          string
-	AuthMethod    constant.AuthMethod    // password 或 key
-	Credential    string                 // 密钥路径
-	Password      string                 // 密码 或 密钥的密码
+	AuthMethod    constant.AuthMethod    // password or key
+	Credential    string                 // key path
+	Password      string                 // password or key password
 	Status        constant.ConnectStatus // connected, disconnected, connecting
 	LastCheckTime time.Time
 	SSHClient     *ssh.Client
@@ -53,7 +54,7 @@ type ConnectionPool struct {
 	servers             map[uint]*Server
 	connectionNumber    int
 	mutex               sync.RWMutex
-	// 连接池配置
+	// connection pool configuration
 }
 
 var connectionPool = ConnectionPool{
@@ -92,13 +93,13 @@ func (c *ConnectionPool) GetServerByID(serverID uint) *Server {
 	return c.servers[serverID]
 }
 
-func (c *ConnectionPool) GetServers() map[uint]*Server {
+func (c *ConnectionPool) GetServers() []*Server {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
-	servers := make(map[uint]*Server)
-	servers[constant.LocalServerID] = LocalServer
-	for id, server := range c.servers {
-		servers[id] = server
+	servers := make([]*Server, 0, len(c.servers)+1)
+	servers = append(servers, LocalServer)
+	for _, server := range c.servers {
+		servers = append(servers, server)
 	}
 	return servers
 }
@@ -128,10 +129,9 @@ func (c *ConnectionPool) RemoveServerFromConnectionPoolByID(serverID uint) {
 	}
 	delete(connectionPool.servers, serverID)
 	connectionPool.connectionNumber--
-	return
 }
 
-// 新建连接
+// create new connection
 func (c *ConnectionPool) NewConnection(config *ServerConfig) error {
 	logs.Logger.Debug("NewConnection")
 
@@ -181,10 +181,10 @@ func sshConnect(config *ServerConfig) (*ssh.Client, error) {
 		Timeout:         30 * time.Second,
 	}
 
-	// 连接地址格式：ip:port
+	// connection address format: ip:port
 	addr := fmt.Sprintf("%s:%d", config.IP, config.Port)
 
-	// 建立SSH连接
+	// establish SSH connection
 	client, err := ssh.Dial("tcp", addr, clientConfig)
 	if err != nil {
 		return nil, err
@@ -192,16 +192,16 @@ func sshConnect(config *ServerConfig) (*ssh.Client, error) {
 	return client, nil
 }
 
-// 获取认证方式（密码或密钥）
+// get authentication method (password or key)
 func getAuthMethods(config *ServerConfig) ([]ssh.AuthMethod, error) {
 	var authMethods []ssh.AuthMethod
 
 	if config.AuthMethod == constant.AuthMethodPassword {
-		// 密码认证
+		// password authentication
 		authMethods = append(authMethods, ssh.Password(config.Password))
 		return authMethods, nil
 	} else if config.AuthMethod == constant.AuthMethodKey {
-		// 密钥认证
+		// key authentication
 		key, err := os.ReadFile(config.Credential)
 		if err != nil {
 			return nil, fmt.Errorf("load key file failed: %v", err)
@@ -209,7 +209,7 @@ func getAuthMethods(config *ServerConfig) ([]ssh.AuthMethod, error) {
 
 		signer, err := ssh.ParsePrivateKey(key)
 		if err != nil {
-			// 尝试处理带密码的密钥
+			// try to handle key with password
 			if config.Password != "" {
 				signer, err = ssh.ParsePrivateKeyWithPassphrase(key, []byte(config.Password))
 			}
@@ -226,21 +226,21 @@ func getAuthMethods(config *ServerConfig) ([]ssh.AuthMethod, error) {
 	return nil, fmt.Errorf("not exists auth method")
 }
 
-// 执行命令
+// execute command
 func (s *Server) ExecuteCommand(cmd string) (string, error) {
 	if s.ID == constant.LocalServerID {
-		// 执行本地命令（捕获 stdout 和 stderr 合并输出）
+		// execute local command (capture stdout and stderr combined output)
 		startTime := time.Now()
 		output, err := exec.Command(cmd).CombinedOutput()
 		result := string(output)
 
 		if err != nil {
-			// 本地命令执行失败：返回错误和输出详情
+			// local command execution failed: return error and output details
 			errMsg := fmt.Errorf("local command failed: %v, output: %s", err, result)
 			return "", errMsg
 		}
 
-		// 本地命令执行成功
+		// local command execution successful
 		logs.Logger.Debug("local command execute success",
 			zap.String("server_id", strconv.Itoa(int(s.ID))),
 			zap.String("cmd", cmd),
@@ -249,25 +249,25 @@ func (s *Server) ExecuteCommand(cmd string) (string, error) {
 		return result, nil
 	}
 
-	// 检查SSH客户端是否有效
+	// check if SSH client is valid
 	if !s.CheckSSHConnection() {
 		return "", fmt.Errorf("SSH not init")
 	}
 
-	// 创建新的会话
+	// create new session
 	session, err := s.SSHClient.NewSession()
 	if err != nil {
 		return "", fmt.Errorf("create session failed: %v", err)
 	}
-	defer session.Close() // 确保会话关闭
+	defer session.Close() // ensure session is closed
 
-	// 设置命令执行超时
+	// set command execution timeout
 	done := make(chan struct{})
 	go func() {
 		select {
 		case <-done:
 			return
-		case <-time.After(30 * time.Second): // 30秒超时
+		case <-time.After(30 * time.Second): // 30 second timeout
 			if err := session.Signal(ssh.SIGKILL); err != nil {
 				logs.Logger.Warn("execute command failed: overtime ",
 					zap.String("server_id", strconv.Itoa(int(s.ID))),
@@ -278,19 +278,19 @@ func (s *Server) ExecuteCommand(cmd string) (string, error) {
 	}()
 	defer close(done)
 
-	// 捕获命令输出
+	// capture command output
 	var stdoutBuf, stderrBuf bytes.Buffer
 	session.Stdout = &stdoutBuf
 	session.Stderr = &stderrBuf
 
-	// 执行命令
+	// execute command
 	startTime := time.Now()
 	if err := session.Run(cmd); err != nil {
-		// 命令执行出错时，返回错误信息
+		// return error information when command execution fails
 		return "", fmt.Errorf("execute command failed: %v, err out: %s", err, stderrBuf.String())
 	}
 
-	// 命令执行成功
+	// command execution successful
 	result := stdoutBuf.String()
 	logs.Logger.Debug("command execute successfully",
 		zap.String("server_id", strconv.Itoa(int(s.ID))),
@@ -301,22 +301,22 @@ func (s *Server) ExecuteCommand(cmd string) (string, error) {
 	return result, nil
 }
 
-// CheckSSHConnection 检测 SSH 连接状态
-// 返回 true 表示连接有效，false 表示连接已断开
+// CheckSSHConnection check SSH connection status
+// returns true if connection is valid, false if connection is disconnected
 func (s *Server) CheckSSHConnection() bool {
-	// 1. 先快速判断：客户端对象是否为 nil 或状态标记为断开
+	// 1. quick check first: whether client object is nil or status is disconnected
 	if s.SSHClient == nil || s.Status != constant.Connected {
 		logs.Logger.Debug("SSH connection invalid (client nil or status disconnected)",
 			zap.String("server_id", strconv.Itoa(int(s.ID))))
 		return false
 	}
 
-	// 2. 发送 SSH 心跳请求（keepalive）
-	// 第三个参数为请求数据（nil 即可），true 表示等待服务器响应
+	// 2. send SSH heartbeat request (keepalive)
+	// third parameter is request data (nil is fine), true means wait for server response
 	_, _, err := s.SSHClient.SendRequest("keepalive@openssh.com", true, nil)
 	if err != nil {
 		connectionPool.mutex.Lock()
-		// 心跳失败：更新状态为断开，清理客户端
+		// heartbeat failed: update status to disconnected, cleanup client
 		s.Status = constant.Disconnected
 		s.SSHClient.Close()
 		s.SSHClient = nil
@@ -327,7 +327,7 @@ func (s *Server) CheckSSHConnection() bool {
 		return false
 	}
 
-	// 3. 心跳成功：更新最后检查时间
+	// 3. heartbeat successful: update last check time
 	connectionPool.mutex.Lock()
 	s.LastCheckTime = time.Now()
 	connectionPool.mutex.Unlock()
@@ -337,28 +337,28 @@ func (s *Server) CheckSSHConnection() bool {
 	return true
 }
 
-// StartSSHConnectionCheckTicker 启动定时批量检测（间隔可配置）
-// interval: 检测间隔，单位秒
+// StartSSHConnectionCheckTicker start scheduled batch detection (interval configurable)
+// interval: detection interval, in seconds
 func (c *ConnectionPool) StartSSHConnectionCheckTicker(interval int) {
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		c.mutex.RLock() // 读锁：批量读取服务器，不阻塞其他读操作
+		c.mutex.RLock() // read lock: batch read servers, don't block other read operations
 		servers := make(map[uint]*Server, len(c.servers))
 		for k, v := range c.servers {
-			// 判断是否已超过检测间隔
+			// check if detection interval has been exceeded
 			if v.LastCheckTime.Add(time.Duration(interval) * time.Second).Before(time.Now()) {
 				servers[k] = v
 			}
 		}
 		c.mutex.RUnlock()
 
-		// 批量检测每个服务器的 SSH 连接
+		// batch detect SSH connection for each server
 		for _, s := range servers {
-			// 检测失败时尝试重连
+			// try to reconnect when detection fails
 			if !s.CheckSSHConnection() {
-				// websocket广播服务器状态
+				// websocket broadcast server status
 				ws.SendMessage(ws.Message{
 					ServerID:     s.ID,
 					ServerStatus: s.Status,
@@ -383,7 +383,7 @@ func (c *ConnectionPool) StartSSHConnectionCheckTicker(interval int) {
 					)
 					continue
 				}
-				// 如果重连成功，更新服务器状态
+				// if reconnection successful, update server status
 				c.mutex.Lock()
 				if existingServer, exists := c.servers[s.ID]; exists {
 					existingServer.SSHClient = client
