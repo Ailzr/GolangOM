@@ -163,6 +163,11 @@ func DeleteServerFunc() gin.HandlerFunc {
 			return
 		}
 
+		if req.ID == constant.LocalServerID {
+			response.Fail(c, http.StatusBadRequest, constant.ParameterError, "cannot delete local server")
+			return
+		}
+
 		server := &model.ServerModel{Model: gorm.Model{ID: req.ID}}
 
 		if !server.IsExists() {
