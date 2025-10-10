@@ -121,7 +121,9 @@ func UpdateAppFunc() gin.HandlerFunc {
 			return
 		}
 
-		if !app.IsExists() {
+		tmp := &model.AppModel{Model: gorm.Model{ID: app.ID}}
+
+		if !tmp.IsExists() {
 			response.Fail(c, http.StatusBadRequest, constant.TargetNotFound, "app not exists")
 		}
 

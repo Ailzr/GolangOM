@@ -121,7 +121,9 @@ func UpdateServerFunc() gin.HandlerFunc {
 			return
 		}
 
-		if !server.IsExists() {
+		tmp := &model.ServerModel{Model: gorm.Model{ID: server.ID}}
+
+		if !tmp.IsExists() {
 			response.Fail(c, http.StatusBadRequest, constant.TargetNotFound, "server not exists")
 			return
 		}
