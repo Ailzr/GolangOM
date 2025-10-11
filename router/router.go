@@ -22,20 +22,20 @@ func InitRouter() {
 	// - MaxAge: 0 means "browser session level" (Cookie expires after browser closes)
 	// - Path: "/" means effective for all paths
 	// - HttpOnly: true prevents frontend JS from reading Cookie, avoiding XSS attacks
-	devMode := viper.GetBool("Server.Development")
-	secure := true
-	if devMode {
-		secure = false
-	} else {
-		secure = true
-	}
+	//devMode := viper.GetBool("Server.Development")
+	//secure := true
+	//if devMode {
+	//	secure = false
+	//} else {
+	//	secure = true
+	//}
 	r.Use(sessions.Sessions("gin-session-id", store), func(c *gin.Context) {
 		session := sessions.Default(c)
 		session.Options(sessions.Options{
 			MaxAge:   0,                    // session level Cookie (expires when browser closes)
 			Path:     "/",                  // effective for all paths
 			HttpOnly: true,                 // prevent frontend JS from accessing Cookie
-			Secure:   secure,               // false for development (HTTP), true for production (HTTPS)
+			Secure:   false,                // false for development (HTTP), true for production (HTTPS)
 			SameSite: http.SameSiteLaxMode, // prevent CSRF attacks
 		})
 		c.Next()

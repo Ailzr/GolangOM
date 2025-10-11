@@ -15,15 +15,16 @@ import (
 )
 
 type appVo struct {
-	ID          uint                  `json:"id"`
-	Name        string                `json:"name"`
-	ServerID    uint                  `json:"server_id"`
-	CheckType   constant.AppCheckType `json:"check_type"`
-	CheckTarget string                `json:"check_target"`
-	StartScript string                `json:"start_script"`
-	AutoRestart bool                  `json:"auto_restart"`
-	CheckResult bool                  `json:"check_result"`
-	CheckTime   time.Time             `json:"last_check_time"`
+	ID            uint                  `json:"id"`
+	Name          string                `json:"name"`
+	ServerID      uint                  `json:"server_id"`
+	CheckType     constant.AppCheckType `json:"check_type"`
+	CheckTarget   string                `json:"check_target"`
+	StartScript   string                `json:"start_script"`
+	CheckInterval int                   `json:"check_interval"`
+	AutoRestart   bool                  `json:"auto_restart"`
+	CheckResult   bool                  `json:"check_result"`
+	CheckTime     time.Time             `json:"last_check_time"`
 }
 
 func GetAppListFunc() gin.HandlerFunc {
@@ -69,14 +70,16 @@ func GetAppFunc() gin.HandlerFunc {
 		appInfo := pkg.GetAppCheckerManager().GetAppCheckerByID(app.ID)
 
 		result := appVo{
-			ID:          appInfo.ID,
-			Name:        appInfo.Name,
-			ServerID:    appInfo.ServerID,
-			CheckType:   appInfo.CheckType,
-			StartScript: appInfo.StartScript,
-			AutoRestart: appInfo.AutoRestart,
-			CheckResult: appInfo.LastCheckResult, // do not return sensitive information
-			CheckTime:   appInfo.LastCheckTime,
+			ID:            appInfo.ID,
+			Name:          appInfo.Name,
+			ServerID:      appInfo.ServerID,
+			CheckType:     appInfo.CheckType,
+			CheckTarget:   appInfo.CheckTarget,
+			StartScript:   appInfo.StartScript,
+			CheckInterval: appInfo.CheckInterval,
+			AutoRestart:   appInfo.AutoRestart,
+			CheckResult:   appInfo.LastCheckResult, // do not return sensitive information
+			CheckTime:     appInfo.LastCheckTime,
 		}
 
 		response.Success(c, gin.H{"app": result})
