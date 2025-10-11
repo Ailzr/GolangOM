@@ -290,8 +290,13 @@ func (s *Server) ExecuteCommand(cmd string) (string, error) {
 		return "", fmt.Errorf("execute command failed: %v, err out: %s", err, stderrBuf.String())
 	}
 
+	if stderrBuf.String() != "" {
+		logs.Logger.Warn("command execute warning info:  ", zap.String("warn out", stderrBuf.String()))
+	}
+
 	// command execution successful
 	result := stdoutBuf.String()
+	logs.Logger.Debug("command execute error info:  ", zap.String("err out", stderrBuf.String()))
 	logs.Logger.Debug("command execute successfully",
 		zap.String("server_id", strconv.Itoa(int(s.ID))),
 		zap.String("cmd", cmd),
@@ -395,6 +400,12 @@ func (c *ConnectionPool) StartSSHConnectionCheckTicker(interval int) {
 					})
 				}
 				c.mutex.Unlock()
+			} else {
+				// update server check time in UI
+				ws.SendMessage(ws.Message{
+					ServerID:     s.ID,
+					ServerStatus: s.Status,
+				})
 			}
 		}
 
