@@ -62,17 +62,19 @@ func GetServerFunc() gin.HandlerFunc {
 			return
 		}
 
-		serverVo := serverVo{
-			ID:          server.ID,
-			AuthMethod:  server.AuthMethod,
-			IP:          server.IP,
-			Port:        server.Port,
-			User:        server.User,
-			CheckResult: "", // do not return sensitive information
-			CheckTime:   time.Time{},
+		serverInfo := pkg.GetConnectionPool().GetServerByID(req.ID)
+
+		result := serverVo{
+			ID:          serverInfo.ID,
+			AuthMethod:  serverInfo.AuthMethod,
+			IP:          serverInfo.IP,
+			Port:        serverInfo.Port,
+			User:        serverInfo.User,
+			CheckResult: serverInfo.Status, // do not return sensitive information
+			CheckTime:   serverInfo.LastCheckTime,
 		}
 
-		response.Success(c, gin.H{"server": serverVo})
+		response.Success(c, gin.H{"server": result})
 	}
 }
 

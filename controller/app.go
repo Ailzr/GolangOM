@@ -66,18 +66,20 @@ func GetAppFunc() gin.HandlerFunc {
 			return
 		}
 
-		appVo := appVo{
-			ID:          app.ID,
-			Name:        app.Name,
-			ServerID:    app.ServerID,
-			CheckType:   app.CheckType,
-			StartScript: app.StartScript,
-			AutoRestart: app.AutoRestart,
-			CheckResult: false, // do not return sensitive information
-			CheckTime:   time.Time{},
+		appInfo := pkg.GetAppCheckerManager().GetAppCheckerByID(app.ID)
+
+		result := appVo{
+			ID:          appInfo.ID,
+			Name:        appInfo.Name,
+			ServerID:    appInfo.ServerID,
+			CheckType:   appInfo.CheckType,
+			StartScript: appInfo.StartScript,
+			AutoRestart: appInfo.AutoRestart,
+			CheckResult: appInfo.LastCheckResult, // do not return sensitive information
+			CheckTime:   appInfo.LastCheckTime,
 		}
 
-		response.Success(c, gin.H{"app": appVo})
+		response.Success(c, gin.H{"app": result})
 	}
 }
 func CreateAppFunc() gin.HandlerFunc {
