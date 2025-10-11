@@ -84,11 +84,11 @@ func (c *ConnectionPool) GetServerIDs() []uint {
 }
 
 func (c *ConnectionPool) GetServerByID(serverID uint) *Server {
-	if _, ok := c.servers[serverID]; !ok {
-		return nil
-	}
 	if serverID == constant.LocalServerID {
 		return LocalServer
+	}
+	if _, ok := c.servers[serverID]; !ok {
+		return nil
 	}
 	return c.servers[serverID]
 }
